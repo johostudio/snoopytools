@@ -1,5 +1,5 @@
-import { useAction } from 'convex/react'
-import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useAction, useConvexAuth } from 'convex/react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { AppData, LastFmEntry, LastFmSnapshot, ListeningCategory, ListeningPeriod, ToolView } from '../domain'
 
@@ -95,31 +95,46 @@ function saveSnapshot(setData: DataSetter, username: string, snapshot: LastFmSna
 
 export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData; setData: DataSetter; onNavigate: (view: ToolView) => void }) {
   const getDashboard = useAction(api.lastfm.getDashboard)
+  const { isAuthenticated } = useConvexAuth()
   const [usernameDraft, setUsernameDraft] = useState<string | null>(null)
   const [period, setPeriod] = useState<ListeningPeriod>('week')
   const [section, setSection] = useState<ListeningCategory | 'recent'>('recent')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const autoLoadedRef = useRef(new Set<string>())
   const snapshot = data.lastFm.snapshots[period]
 
-  const load = async () => {
-    const cleanUsername = (usernameDraft ?? data.lastFm.username).trim()
+  const load = useCallback(async (automatic = false) => {
+    const cleanUsername = (automatic ? data.lastFm.username : usernameDraft ?? data.lastFm.username).trim()
     if (!cleanUsername) {
-      setMessage('enter your last.fm username first.')
+      if (!automatic) setMessage('enter your last.fm username first.')
       return
     }
     setBusy(true)
-    setMessage('')
+    if (!automatic) setMessage('')
     try {
       const result = await getDashboard({ username: cleanUsername, period })
       saveSnapshot(setData, cleanUsername, result as LastFmSnapshot)
-      setMessage('listening archive updated.')
+      if (!automatic) setMessage('listening archive updated.')
     } catch (error) {
-      setMessage(cleanError(error))
+      if (!automatic || !snapshot) setMessage(cleanError(error))
     } finally {
       setBusy(false)
     }
-  }
+  }, [data.lastFm.username, getDashboard, period, setData, snapshot, usernameDraft])
+
+  useEffect(() => {
+    const username = data.lastFm.username.trim()
+    if (!username || !isAuthenticated || !navigator.onLine) return
+    const key = `${username.toLowerCase()}:${period}`
+    if (autoLoadedRef.current.has(key)) return
+    const fetchedAt = snapshot?.fetchedAt ? Date.parse(snapshot.fetchedAt) : 0
+    const isFresh = Number.isFinite(fetchedAt) && Date.now() - fetchedAt < 15 * 60 * 1_000
+    if (isFresh) return
+    autoLoadedRef.current.add(key)
+    // oxlint-disable-next-line react/set-state-in-effect -- refreshes the external Last.fm cache after a saved connection becomes stale.
+    void load(true)
+  }, [data.lastFm.username, isAuthenticated, load, period, snapshot?.fetchedAt])
 
   const entries = section === 'recent' ? snapshot?.recent ?? [] : snapshot?.[section] ?? []
   const topArtist = snapshot?.artists[0]
@@ -128,7 +143,7 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
 
   return (
     <div className="listening-view view-enter">
-      <ListeningHeader index="791" title="last.fm browser" action={<button className="outline-action" onClick={() => onNavigate('music-picks')}>open top three ↗</button>} />
+      <ListeningHeader index="791" title="last.fm browser" action={<button className="outline-action" onClick={() => onNavigate('music-picks')}>open bests ↗</button>} />
 
       <section className="lastfm-connect paper-texture reveal">
         <div>
@@ -137,7 +152,7 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
           <small>{snapshot ? `${number(snapshot.user.playcount)} all-time scrobbles · ${fetchedLabel(snapshot.fetchedAt)}` : 'public read-only stats · cached after each refresh'}</small>
         </div>
         <label><span>username</span><input value={usernameDraft ?? data.lastFm.username} onChange={(event) => setUsernameDraft(event.target.value)} placeholder="last.fm username" autoCapitalize="none" autoCorrect="off" /></label>
-        <button type="button" className="listening-refresh" onClick={() => void load()} disabled={busy}>{busy ? 'loading…' : snapshot ? 'refresh stats' : 'connect archive'}</button>
+        <button type="button" className="listening-refresh" onClick={() => void load(false)} disabled={busy}>{busy ? 'loading…' : snapshot ? 'refresh stats' : 'connect archive'}</button>
         {message && <output>{message}</output>}
       </section>
 
@@ -165,9 +180,7 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
             <ListeningRows entries={entries} category={section} />
           </section>
         </>
-      ) : (
-        <section className="listening-blank paper-texture"><span>{period} archive</span><strong>connect once,<br />then refresh when you want.</strong><p>the last successful copy stays available offline and syncs with the rest of your archive.</p></section>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -224,7 +237,7 @@ export function LastFmPicksView({ data, setData, onNavigate }: { data: AppData; 
 
   return (
     <div className="listening-view picks-view view-enter">
-      <ListeningHeader index="792" title="top three" action={<button className="outline-action" onClick={() => onNavigate('lastfm')}>listening browser ↗</button>} />
+      <ListeningHeader index="792" title="bests" action={<button className="outline-action" onClick={() => onNavigate('lastfm')}>listening browser ↗</button>} />
       <PeriodTabs value={period} onChange={(next) => { setPeriod(next); setMessage('') }} />
 
       <section className="picks-cover paper-texture reveal">

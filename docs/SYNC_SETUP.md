@@ -25,11 +25,13 @@ Log into the same Convex account and select the existing project. The command cr
 
 Open the app's sync panel, create an account with an email and a password of at least eight characters, and use the same credentials on each device. Password reset email is not enabled yet, so save the password in a password manager.
 
-The web/PWA auth provider stores a renewable Convex session in that device's `localStorage`. After the first sign-in, closing the PWA, refreshing it, or installing a newer service worker does not require another password. The session is removed only when **sign out** is selected, site storage is cleared, or the refresh session is revoked.
+The web/PWA auth provider stores a renewable Convex session in that device's `localStorage`. After the first sign-in, closing the PWA, refreshing it, or installing a newer service worker does not require another password. There is no sign-out control in the app, so the session remains until site storage is cleared or the refresh session is revoked.
 
 ## Last.fm connection
 
 The listening browser uses Last.fm's public read-only methods through a Convex action. Create an API account at `https://www.last.fm/api/account/create`, then set only the API key in Convex. The API secret is not used by this app.
+
+After a Last.fm username connects successfully, it is stored with the rest of the app archive. The browser refreshes stale listening data when opened and keeps the last successful copy available offline.
 
 ```powershell
 npx convex env set LASTFM_API_KEY

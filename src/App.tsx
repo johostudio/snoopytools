@@ -44,7 +44,7 @@ const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'notes', label: 'notes', number: '07' },
   { id: 'trackers', label: 'trackers', number: '08' },
   { id: 'lastfm', label: 'last.fm', number: '09' },
-  { id: 'music-picks', label: 'top three', number: '10' },
+  { id: 'music-picks', label: 'bests', number: '10' },
 ]
 
 const THEMES: { id: AppTheme; label: string }[] = [
@@ -350,7 +350,7 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
         </div>
       </section>
 
-      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'signed in until you choose sign out' : 'sign in once; this device will remember you'}</span></div>
+      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'this session stays saved on this device' : 'sign in once; this device will remember you'}</span></div>
       {(sync.status === 'error' || sync.status === 'offline') && <p className="sync-state-message">{sync.message}</p>}
 
       {!sync.configured && (
@@ -384,7 +384,6 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
         <div className="sync-account">
           <span>signed in as</span>
           <strong>{sync.email ?? 'private account'}</strong>
-          <button onClick={() => void sync.signOut()}>sign out</button>
         </div>
       )}
 

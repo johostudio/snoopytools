@@ -43,7 +43,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
   const configured = Boolean(import.meta.env.VITE_CONVEX_URL?.trim())
   const convex = useConvex()
   const { isLoading, isAuthenticated } = useConvexAuth()
-  const { signIn, signOut: endAuthSession } = useAuthActions()
+  const { signIn } = useAuthActions()
   const currentUser = useQuery(api.sync.currentUser, isAuthenticated ? {} : 'skip')
   const cloudState = useQuery(api.sync.getState, isAuthenticated ? {} : 'skip')
   const saveState = useMutation(api.sync.saveState)
@@ -282,14 +282,6 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       : 'use the account you already created')
   }
 
-  const signOut = async () => {
-    await endAuthSession()
-    initializedUserRef.current = null
-    uploadedIdsRef.current.clear()
-    setStatus('sign-in')
-    setMessage('signed out; local data stays on this device')
-  }
-
   return {
     configured,
     status,
@@ -298,6 +290,5 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     authenticated: isAuthenticated,
     signInWithPassword,
     prepareAuth,
-    signOut,
   }
 }
