@@ -15,7 +15,7 @@ Snoopy's Home should feel smaller than the sum of its features. It is not a gene
 7. **Notes** — fast plain-text capture, not a document database.
 8. **Specific trackers** — user-defined increments, units, targets, and reset cadence.
 
-The current boilerplate implements the core interactions locally. It deliberately does not claim cloud sync before the backend exists.
+The current app implements the core interactions locally and includes the client connector, RLS schema, private photo policies, realtime listener, and authentication controls needed for cloud sync. A Supabase project and Apple provider still need to be configured before cross-device sync is live.
 
 ## Apple integration
 
@@ -30,13 +30,13 @@ Direct writes to Apple Reminders, native contacts, widgets, and background photo
 
 ## Sync architecture
 
-Use an offline-first event log instead of treating the server as a live hard dependency.
+Treat the server as a mirror rather than a live hard dependency.
 
-- **Client store:** structured records in IndexedDB, with photo blobs already stored separately from app data. The production repository will give every object `id`, `updated_at`, `deleted_at`, and a monotonic local revision.
+- **Client store:** structured records in `localStorage`, photo blobs in IndexedDB, and the installable shell in the service-worker cache.
 - **Authentication:** Supabase Auth with Apple sign-in and email magic links. Add passkeys once the core flow is stable.
-- **Server:** Supabase Postgres with Row Level Security; each row belongs to one `user_id`.
-- **Transport:** push local mutations in small batches, then pull changes after the last acknowledged cursor.
-- **Conflict policy:** field-level last-write-wins for notes and tracker settings; append-only entries for tracker history; item-level merges for lists.
+- **Server:** one private JSON document per user in Supabase Postgres, protected by Row Level Security, plus a private per-user photo folder in Storage.
+- **Transport:** debounced document uploads, reconnect retry, photo upload/download, and a filtered Realtime subscription.
+- **Conflict policy:** document-level last-write-wins based on the app update timestamp. Field-level merge is the next hardening step for truly simultaneous multi-device editing.
 - **Presence:** a small status surface only—offline, syncing, synced, or needs attention.
 - **Recovery:** soft deletes, 30-day restore window, and export/import as JSON.
 
@@ -52,16 +52,17 @@ This gives instant local writes on iPhone and desktop while making network inter
 - Apple Calendar exports and birthday-card sharing
 - Golden-hour calculations with opt-in browser geolocation
 - Route-estimated focus flights with a real airport route map and sealed arrival message
+- Persistent flight history and an expanded global airport catalog
+- Local themes and sync-state UI
 - Reference-matched visual system
 - Install/offline shell
 
 ### Phase 2 — accounts and sync
 
-- Supabase project, schema, migrations, and RLS policies
-- Apple sign-in plus email fallback
-- IndexedDB repository and mutation queue
-- Object storage, resizing, and resumable upload for birthday and concert photos
-- Push/pull cursor sync with offline retry
+- Create the hosted Supabase project and run the included schema/RLS setup
+- Configure Apple sign-in credentials and production redirect URLs
+- Add field-level conflict merging and tombstones for simultaneous edits
+- Add photo resizing and resumable uploads for large originals
 - Multi-device and conflict tests
 
 ### Phase 3 — iPhone depth

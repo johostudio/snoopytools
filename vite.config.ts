@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'field-at-dusk.jpg'],
+      includeAssets: ['favicon.ico', 'headphones-field.jpg'],
       manifest: {
         name: "Snoopy's Home",
         short_name: 'Snoopy Home',
@@ -30,6 +30,20 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,svg,png,jpg,woff,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'snoopy-map-tiles',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 300,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+        ],
       },
     }),
   ],

@@ -17,12 +17,15 @@ import { AIRPORTS, estimateFlightMinutes, findAirport, routeDistanceKm } from '.
 import {
   createInitialState,
   migrateAppData,
+  type AppTheme,
   type AppData,
   type Birthday,
   type Concert,
+  type FlightHistoryEntry,
   type ToolView,
 } from './domain'
 import { usePersistentState } from './hooks/usePersistentState'
+import { useCloudSync } from './hooks/useCloudSync'
 import { addBirthdayToAppleCalendar, addConcertToAppleCalendar, shareOrDownload } from './lib/apple'
 import { renderBirthdayCard, type CardStyle } from './lib/birthdayCard'
 import { deletePhoto, getPhoto, savePhoto } from './lib/photoStore'
@@ -30,15 +33,22 @@ import { deletePhoto, getPhoto, savePhoto } from './lib/photoStore'
 type DataSetter = Dispatch<SetStateAction<AppData>>
 
 const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
-  { id: 'today', label: 'Index', number: '00' },
-  { id: 'birthdays', label: 'Birthdays', number: '01' },
-  { id: 'concerts', label: 'Concerts', number: '02' },
-  { id: 'sunset', label: 'Sunset', number: '03' },
-  { id: 'flight', label: 'Flight', number: '04' },
-  { id: 'routines', label: 'Repeat', number: '05' },
-  { id: 'moment', label: 'Time', number: '06' },
-  { id: 'notes', label: 'Notes', number: '07' },
-  { id: 'trackers', label: 'Trackers', number: '08' },
+  { id: 'today', label: 'index', number: '00' },
+  { id: 'birthdays', label: 'birthdays', number: '01' },
+  { id: 'concerts', label: 'concerts', number: '02' },
+  { id: 'sunset', label: 'sunset', number: '03' },
+  { id: 'flight', label: 'flight', number: '04' },
+  { id: 'routines', label: 'repeat', number: '05' },
+  { id: 'moment', label: 'time', number: '06' },
+  { id: 'notes', label: 'notes', number: '07' },
+  { id: 'trackers', label: 'trackers', number: '08' },
+]
+
+const THEMES: { id: AppTheme; label: string }[] = [
+  { id: 'moss', label: 'moss' },
+  { id: 'blue', label: 'blue' },
+  { id: 'plum', label: 'plum' },
+  { id: 'amber', label: 'amber' },
 ]
 
 const pad = (value: number) => String(value).padStart(2, '0')
@@ -62,6 +72,28 @@ function formatFlightDuration(totalMinutes: number) {
   const minutes = totalMinutes % 60
   if (hours === 0) return `${minutes} min`
   return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
+}
+
+function createFlightHistoryEntry(
+  flight: AppData['focusFlight'],
+  outcome: FlightHistoryEntry['outcome'],
+  endedAt: string,
+) {
+  if (!flight.startedAt) return null
+  const origin = findAirport(flight.originCode)
+  const destination = findAirport(flight.destinationCode)
+  return {
+    id: flight.sessionId ?? `legacy-${flight.startedAt}`,
+    originCode: origin.code,
+    destinationCode: destination.code,
+    durationMinutes: flight.durationMinutes,
+    distanceKm: Math.round(routeDistanceKm(origin, destination)),
+    intention: flight.intention,
+    arrivalMessage: flight.arrivalMessage,
+    startedAt: flight.startedAt,
+    endedAt,
+    outcome,
+  } satisfies FlightHistoryEntry
 }
 
 const AIRPORT_CLOCKS = [
@@ -228,6 +260,51 @@ function PrimaryAction({ children, onClick, disabled = false }: { children: Reac
     <button type="button" className="primary-action" onClick={onClick} disabled={disabled}>
       <span>{children}</span><i aria-hidden="true">›</i>
     </button>
+  )
+}
+
+function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; onClose: () => void }) {
+  const [email, setEmail] = useState('')
+  const submitEmail = (event: FormEvent) => {
+    event.preventDefault()
+    if (email.trim()) void sync.sendMagicLink(email.trim())
+  }
+
+  return (
+    <aside className="sync-panel paper-texture" aria-label="sync settings">
+      <button className="sync-panel__close" onClick={onClose} aria-label="close sync settings">×</button>
+      <span className="folio">personal cloud / 同期</span>
+      <h2>everywhere,<br />even offline.</h2>
+      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.status}</strong></div>
+      <p>{sync.message}</p>
+
+      {!sync.configured && (
+        <div className="sync-setup-note">
+          <b>cloud connection needed</b>
+          <span>the app is keeping everything safely on this device. add the two supabase environment values and run the included setup sql to turn on account sync.</span>
+        </div>
+      )}
+
+      {sync.configured && !sync.email && (
+        <>
+          <button className="sync-apple" onClick={() => void sync.signInWithApple()}>continue with apple</button>
+          <form className="sync-email" onSubmit={submitEmail}>
+            <label htmlFor="sync-email">or use a private email link</label>
+            <div><input id="sync-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /><button>send link</button></div>
+          </form>
+        </>
+      )}
+
+      {sync.email && (
+        <div className="sync-account">
+          <span>signed in as</span>
+          <strong>{sync.email}</strong>
+          <button onClick={() => void sync.signOut()}>sign out</button>
+        </div>
+      )}
+
+      <small>notes and records stay in local storage. photos stay in indexeddb. while signed in, both are mirrored to your private cloud and restored on another device.</small>
+    </aside>
   )
 }
 
@@ -685,6 +762,7 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
     const durationMinutes = estimateFlightMinutes(origin, destination)
     const startedAt = now
     updateFlight({
+      sessionId: crypto.randomUUID(),
       durationMinutes,
       status: 'flying',
       startedAt: startedAt.toISOString(),
@@ -697,13 +775,26 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
 
   const pauseFlight = () => updateFlight({ status: 'paused', pausedRemainingSeconds: remainingSeconds, endsAt: undefined })
   const resumeFlight = () => updateFlight({ status: 'flying', endsAt: new Date(Date.now() + remainingSeconds * 1_000).toISOString() })
-  const resetFlight = () => updateFlight({
-    durationMinutes: estimatedMinutes,
-    status: 'idle',
-    startedAt: undefined,
-    endsAt: undefined,
-    pausedRemainingSeconds: undefined,
-    landedAt: undefined,
+  const resetFlight = () => setData((current) => {
+    const timestamp = new Date().toISOString()
+    const shouldArchive = current.focusFlight.status === 'flying' || current.focusFlight.status === 'paused'
+    const historyEntry = shouldArchive ? createFlightHistoryEntry(current.focusFlight, 'ended', timestamp) : null
+    const alreadyStored = historyEntry && current.flightHistory.some((item) => item.id === historyEntry.id)
+    return {
+      ...current,
+      focusFlight: {
+        ...current.focusFlight,
+        sessionId: undefined,
+        durationMinutes: estimatedMinutes,
+        status: 'idle',
+        startedAt: undefined,
+        endsAt: undefined,
+        pausedRemainingSeconds: undefined,
+        landedAt: undefined,
+      },
+      flightHistory: historyEntry && !alreadyStored ? [historyEntry, ...current.flightHistory] : current.flightHistory,
+      updatedAt: timestamp,
+    }
   })
 
   return (
@@ -734,13 +825,13 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
               <div className="flight-airports">
                 <Field label="FROM">
                   <select value={flight.originCode} onChange={(event) => updateRoute({ originCode: event.target.value })}>
-                    {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}</option>)}
+                    {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}, {airport.country}</option>)}
                   </select>
                 </Field>
                 <span>→</span>
                 <Field label="TO">
                   <select value={flight.destinationCode} onChange={(event) => updateRoute({ destinationCode: event.target.value })}>
-                    {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}</option>)}
+                    {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}, {airport.country}</option>)}
                   </select>
                 </Field>
               </div>
@@ -780,6 +871,29 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
           )}
         </section>
       </div>
+      <section className="flight-history paper-texture reveal">
+        <div className="flight-history__heading">
+          <div><span>flight log / 飛行記録</span><h2>past flights.</h2></div>
+          <b>{pad(data.flightHistory.length)}</b>
+        </div>
+        {data.flightHistory.length === 0 ? (
+          <p className="flight-history__empty">completed and ended sessions will stay here.</p>
+        ) : (
+          <div className="flight-history__list">
+            {data.flightHistory.map((entry, index) => (
+              <article key={entry.id}>
+                <span>{pad(index + 1)}</span>
+                <strong>{entry.originCode} → {entry.destinationCode}</strong>
+                <div>
+                  <time dateTime={entry.endedAt}>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(entry.endedAt))}</time>
+                  <small>{formatFlightDuration(entry.durationMinutes)} · {entry.distanceKm.toLocaleString('en-US')} km · {entry.outcome}</small>
+                </div>
+                <p>{entry.intention || entry.arrivalMessage || 'no note'}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
@@ -849,7 +963,7 @@ function MomentView({ data, setData, now }: { data: AppData; setData: DataSetter
       <PageHeader index="781" japanese="ひとつの大切な瞬間" title="Point in time" />
       <section className="moment-poster paper-texture">
         <span className="vertical-copy">TIME ARCHIVE / VANCOUVER</span>
-        <input className="moment-name" value={data.moment.label} onChange={(event) => setData((current) => ({ ...current, moment: { ...current.moment, label: event.target.value } }))} placeholder="event" />
+        <input className="moment-name" value={data.moment.label} onChange={(event) => setData((current) => ({ ...current, moment: { ...current.moment, label: event.target.value }, updatedAt: new Date().toISOString() }))} placeholder="event" />
         <div className="moment-count">
           <strong>{diff.days}</strong><span>days</span><strong>{pad(diff.hours)}</strong><span>hrs</span><strong>{pad(diff.minutes)}</strong><span>min</span><strong>{pad(diff.seconds)}</strong><span>sec</span>
         </div>
@@ -857,7 +971,7 @@ function MomentView({ data, setData, now }: { data: AppData; setData: DataSetter
         <input type="datetime-local" value={dateTimeInputValue(data.moment.targetAt)} onChange={(event) => {
           const date = new Date(event.target.value)
           if (!Number.isNaN(date.getTime())) {
-            setData((current) => ({ ...current, moment: { ...current.moment, targetAt: date.toISOString() } }))
+            setData((current) => ({ ...current, moment: { ...current.moment, targetAt: date.toISOString() }, updatedAt: new Date().toISOString() }))
           }
         }} />
         <b className="archive-number">004</b>
@@ -871,10 +985,13 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const selected = data.notes.find((note) => note.id === selectedId) ?? data.notes[0]
   const addNote = () => {
     const note = { id: crypto.randomUUID(), title: '', body: '', updatedAt: new Date().toISOString() }
-    setData((current) => ({ ...current, notes: [note, ...current.notes] }))
+    setData((current) => ({ ...current, notes: [note, ...current.notes], updatedAt: note.updatedAt }))
     setSelectedId(note.id)
   }
-  const update = (patch: Partial<AppData['notes'][number]>) => selected && setData((current) => ({ ...current, notes: current.notes.map((note) => note.id === selected.id ? { ...note, ...patch, updatedAt: new Date().toISOString() } : note) }))
+  const update = (patch: Partial<AppData['notes'][number]>) => selected && setData((current) => {
+    const updatedAt = new Date().toISOString()
+    return { ...current, notes: current.notes.map((note) => note.id === selected.id ? { ...note, ...patch, updatedAt } : note), updatedAt }
+  })
 
   return (
     <div className="simple-page view-enter">
@@ -891,7 +1008,7 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
 }
 
 function TrackersView({ data, setData }: { data: AppData; setData: DataSetter }) {
-  const change = (id: string, amount: number) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, value: Math.max(0, Math.min(tracker.target, Number((tracker.value + amount).toFixed(2)))) } : tracker) }))
+  const change = (id: string, amount: number) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, value: Math.max(0, Math.min(tracker.target, Number((tracker.value + amount).toFixed(2)))) } : tracker), updatedAt: new Date().toISOString() }))
   const update = (id: string, patch: Partial<AppData['trackers'][number]>) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, ...patch } : tracker), updatedAt: new Date().toISOString() }))
   const addTracker = () => setData((current) => ({ ...current, trackers: [...current.trackers, { id: crypto.randomUUID(), label: '', value: 0, target: 1, unit: '', step: 1 }], updatedAt: new Date().toISOString() }))
   return (
@@ -927,6 +1044,8 @@ function App() {
   const [data, setData] = usePersistentState<AppData>('snoopytools:data:v1', createInitialState, migrateAppData)
   const [activeView, setActiveView] = useState<ToolView>('today')
   const [now, setNow] = useState(() => new Date())
+  const [syncOpen, setSyncOpen] = useState(false)
+  const sync = useCloudSync(data, setData)
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -934,10 +1053,14 @@ function App() {
       setNow(tick)
       setData((current) => {
         if (current.focusFlight.status !== 'flying' || !current.focusFlight.endsAt || new Date(current.focusFlight.endsAt) > tick) return current
+        const endedAt = tick.toISOString()
+        const historyEntry = createFlightHistoryEntry(current.focusFlight, 'landed', endedAt)
+        const alreadyStored = historyEntry && current.flightHistory.some((item) => item.id === historyEntry.id)
         return {
           ...current,
-          focusFlight: { ...current.focusFlight, status: 'arrived', endsAt: undefined, pausedRemainingSeconds: 0, landedAt: tick.toISOString() },
-          updatedAt: tick.toISOString(),
+          focusFlight: { ...current.focusFlight, status: 'arrived', endsAt: undefined, pausedRemainingSeconds: 0, landedAt: endedAt },
+          flightHistory: historyEntry && !alreadyStored ? [historyEntry, ...current.flightHistory] : current.flightHistory,
+          updatedAt: endedAt,
         }
       })
     }, 1_000)
@@ -945,23 +1068,35 @@ function App() {
   }, [setData])
 
   const activeIndex = useMemo(() => NAV_ITEMS.find((item) => item.id === activeView)?.number ?? '00', [activeView])
+  const changeTheme = (theme: AppTheme) => setData((current) => ({
+    ...current,
+    preferences: { ...current.preferences, theme },
+    updatedAt: new Date().toISOString(),
+  }))
 
   return (
-    <div className={`app-frame app-frame--${activeView}`}>
+    <div className={`app-frame app-frame--${activeView}`} data-theme={data.preferences.theme}>
       <div className="global-grain" aria-hidden="true" />
       <header className="app-chrome">
         <button className="brand-lockup" onClick={() => setActiveView('today')}>
           <img src="/favicon.ico" alt="" aria-hidden="true" />
-          <span className="brand-copy"><strong>snoopy's home;</strong><small>local tools</small></span>
+          <span className="brand-copy"><strong>snoopy's home;</strong><small>'everything i've ever wanted' - tiffany day</small></span>
         </button>
         <nav aria-label="Main tools">
           {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => setActiveView(item.id)}><span>{item.number}</span>{item.label}</button>)}
         </nav>
-        <div className="chrome-status"><i /> LOCAL <span>{activeIndex}/08</span></div>
+        <div className="chrome-actions">
+          <div className="theme-switcher" aria-label="colour theme">
+            {THEMES.map((theme) => <button key={theme.id} className={data.preferences.theme === theme.id ? 'is-active' : ''} onClick={() => changeTheme(theme.id)} aria-label={`${theme.label} theme`} title={`${theme.label} theme`}><i /></button>)}
+          </div>
+          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open sync settings"><i /> {sync.status === 'sign-in' ? 'local' : sync.status} <span>{activeIndex}/08</span></button>
+        </div>
       </header>
 
+      {syncOpen && <SyncPanel sync={sync} onClose={() => setSyncOpen(false)} />}
+
       <aside className="issue-rail">
-        <span>SNOOPY'S HOME</span>
+        <span>snoopy's home</span>
         <AirportClocks now={now} />
         <b>{activeIndex}</b>
       </aside>

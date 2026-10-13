@@ -54,6 +54,10 @@ export async function getPhoto(id: string) {
   return runTransaction<StoredPhoto | undefined>('readonly', (store) => store.get(id))
 }
 
+export async function putPhoto(photo: StoredPhoto) {
+  await runTransaction('readwrite', (store) => store.put(photo))
+}
+
 export async function deletePhoto(id: string) {
   await runTransaction('readwrite', (store) => store.delete(id))
 }

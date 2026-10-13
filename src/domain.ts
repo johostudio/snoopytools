@@ -1,6 +1,7 @@
 import { estimateFlightMinutes, findAirport } from './data/airports'
 
 export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers'
+export type AppTheme = 'moss' | 'blue' | 'plum' | 'amber'
 
 export interface RoutineItem {
   id: string
@@ -62,6 +63,7 @@ export interface SolarSettings {
 export type FlightStatus = 'idle' | 'flying' | 'paused' | 'arrived'
 
 export interface FocusFlight {
+  sessionId?: string
   originCode: string
   destinationCode: string
   durationMinutes: number
@@ -74,8 +76,21 @@ export interface FocusFlight {
   landedAt?: string
 }
 
+export interface FlightHistoryEntry {
+  id: string
+  originCode: string
+  destinationCode: string
+  durationMinutes: number
+  distanceKm: number
+  intention: string
+  arrivalMessage: string
+  startedAt: string
+  endedAt: string
+  outcome: 'landed' | 'ended'
+}
+
 export interface AppData {
-  version: 5
+  version: 6
   routines: Routine[]
   moment: {
     label: string
@@ -87,6 +102,10 @@ export interface AppData {
   concerts: Concert[]
   solar: SolarSettings
   focusFlight: FocusFlight
+  flightHistory: FlightHistoryEntry[]
+  preferences: {
+    theme: AppTheme
+  }
   updatedAt: string
 }
 
@@ -97,7 +116,7 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 5,
+    version: 6,
     routines: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
@@ -116,6 +135,10 @@ export function createInitialState(): AppData {
       intention: '',
       arrivalMessage: '',
       status: 'idle',
+    },
+    flightHistory: [],
+    preferences: {
+      theme: 'moss',
     },
     updatedAt: now.toISOString(),
   }
@@ -137,6 +160,10 @@ export function migrateAppData(input: unknown): AppData {
   const concerts = Array.isArray(candidate.concerts) ? omitLegacySeeds(candidate.concerts, ['concert-japanese-house']) : defaults.concerts
   const moment = candidate.moment && typeof candidate.moment === 'object' ? { ...defaults.moment, ...candidate.moment } : defaults.moment
   const focusFlight = candidate.focusFlight && typeof candidate.focusFlight === 'object' ? { ...defaults.focusFlight, ...candidate.focusFlight } : defaults.focusFlight
+  const flightHistory = Array.isArray(candidate.flightHistory) ? candidate.flightHistory : defaults.flightHistory
+  const preferences = candidate.preferences && typeof candidate.preferences === 'object'
+    ? { ...defaults.preferences, ...candidate.preferences }
+    : defaults.preferences
 
   if (legacy && moment.label === 'The next good thing') moment.label = ''
   if (legacy && focusFlight.intention === 'Finish one honest, uninterrupted block of study.') focusFlight.intention = ''
@@ -149,7 +176,7 @@ export function migrateAppData(input: unknown): AppData {
   return {
     ...defaults,
     ...candidate,
-    version: 5,
+    version: 6,
     routines,
     notes,
     trackers,
@@ -158,5 +185,7 @@ export function migrateAppData(input: unknown): AppData {
     moment,
     solar: candidate.solar && typeof candidate.solar === 'object' ? { ...defaults.solar, ...candidate.solar } : defaults.solar,
     focusFlight,
+    flightHistory,
+    preferences,
   }
 }
