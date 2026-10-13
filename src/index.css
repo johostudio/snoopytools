@@ -1,0 +1,53 @@
+:root {
+  font-family: 'Manrope Variable', 'Avenir Next', sans-serif;
+  color: #fff;
+  background: #171717;
+  font-synthesis: none;
+  font-kerning: normal;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --red: #d52920;
+  --ink: #171717;
+  --paper: #f3f0e9;
+  --pink: #e4a4cf;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  background: #171717;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  letter-spacing: -.018em;
+}
+
+button,
+input,
+textarea { font: inherit; }
+
+button { color: inherit; }
+
+button,
+label,
+input[type='checkbox'] { -webkit-tap-highlight-color: transparent; }
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: #171717;
+  background: #e4a4cf;
+}
+
+#root { min-height: 100dvh; }
