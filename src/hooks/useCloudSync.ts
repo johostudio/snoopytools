@@ -33,17 +33,6 @@ function errorMessage(error: unknown, fallback: string) {
   return message || fallback
 }
 
-function authErrorMessage(error: unknown, flow: AuthFlow) {
-  const fallback = flow === 'signUp'
-    ? 'account could not be created. check the email and try again.'
-    : 'email or password did not match. first time here? choose create account.'
-  const message = errorMessage(error, fallback)
-  if (/server error called by client|invalidaccountid|invalidsecret|invalid credentials/i.test(message)) {
-    return fallback
-  }
-  return message
-}
-
 export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<AppData>>) {
   const configured = Boolean(import.meta.env.VITE_CONVEX_URL?.trim())
   const convex = useConvex()
@@ -273,7 +262,9 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       await signIn('password', form)
     } catch (error) {
       setStatus('error')
-      setMessage(authErrorMessage(error, flow))
+      setMessage(flow === 'signUp'
+        ? 'account could not be created. check the email and try again.'
+        : 'email or password did not match. first time here? choose create account.')
       throw error
     }
   }
