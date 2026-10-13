@@ -15,7 +15,7 @@ Snoopy's Home should feel smaller than the sum of its features. It is not a gene
 7. **Notes** — fast plain-text capture, not a document database.
 8. **Specific trackers** — user-defined increments, units, targets, and reset cadence.
 
-The current app implements the core interactions locally and includes the client connector, RLS schema, private photo policies, realtime listener, and authentication controls needed for cloud sync. A Supabase project and Apple provider still need to be configured before cross-device sync is live.
+The current app implements the core interactions locally and includes a deployed Convex development schema, private per-account photo records, reactive sync, and email/password authentication. Production deployment configuration and Apple OAuth credentials are the remaining account-infrastructure steps.
 
 ## Apple integration
 
@@ -33,9 +33,9 @@ Direct writes to Apple Reminders, native contacts, widgets, and background photo
 Treat the server as a mirror rather than a live hard dependency.
 
 - **Client store:** structured records in `localStorage`, photo blobs in IndexedDB, and the installable shell in the service-worker cache.
-- **Authentication:** Supabase Auth with Apple sign-in and email magic links. Add passkeys once the core flow is stable.
-- **Server:** one private JSON document per user in Supabase Postgres, protected by Row Level Security, plus a private per-user photo folder in Storage.
-- **Transport:** debounced document uploads, reconnect retry, photo upload/download, and a filtered Realtime subscription.
+- **Authentication:** Convex Auth with email and password today. Apple sign-in can use the same account layer after Apple Developer credentials are configured.
+- **Server:** one private JSON document per user in Convex plus authenticated per-user file records in Convex Storage.
+- **Transport:** debounced document uploads, reconnect retry, photo upload/download, and reactive Convex queries.
 - **Conflict policy:** document-level last-write-wins based on the app update timestamp. Field-level merge is the next hardening step for truly simultaneous multi-device editing.
 - **Presence:** a small status surface only—offline, syncing, synced, or needs attention.
 - **Recovery:** soft deletes, 30-day restore window, and export/import as JSON.
@@ -59,8 +59,8 @@ This gives instant local writes on iPhone and desktop while making network inter
 
 ### Phase 2 — accounts and sync
 
-- Create the hosted Supabase project and run the included schema/RLS setup
-- Configure Apple sign-in credentials and production redirect URLs
+- Connect the production Convex deployment to Vercel and initialize production auth secrets
+- Configure Apple sign-in credentials and production redirect URLs when an Apple Developer account is available
 - Add field-level conflict merging and tombstones for simultaneous edits
 - Add photo resizing and resumable uploads for large originals
 - Multi-device and conflict tests

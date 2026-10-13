@@ -1,15 +1,13 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import type { Session } from '@supabase/supabase-js'
+import { useAuthActions } from '@convex-dev/auth/react'
+import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
 import { migrateAppData, type AppData } from '../domain'
 import { getPhoto, putPhoto } from '../lib/photoStore'
-import { cloudConfigured, PHOTO_BUCKET, supabase } from '../lib/supabase'
 
 export type CloudSyncStatus = 'local' | 'sign-in' | 'syncing' | 'synced' | 'offline' | 'error'
-
-interface CloudStateRow {
-  data: unknown
-  updated_at: string
-}
+export type AuthFlow = 'signIn' | 'signUp'
 
 function photoIdsFor(data: AppData) {
   return [...new Set([
@@ -29,176 +27,186 @@ function hasPersonalData(data: AppData) {
     || data.focusFlight.status !== 'idle'
 }
 
-async function downloadMissingPhotos(data: AppData, userId: string) {
-  if (!supabase) return
-  for (const id of photoIdsFor(data)) {
-    if (await getPhoto(id)) continue
-    const { data: blob, error } = await supabase.storage.from(PHOTO_BUCKET).download(`${userId}/${id}`)
-    if (error) throw error
-    if (!blob) throw new Error(`photo ${id} could not be downloaded`)
-    await putPhoto({ id, blob, name: id, createdAt: new Date().toISOString() })
-  }
-}
-
-async function uploadLocalPhotos(data: AppData, userId: string, uploadedIds: Set<string>) {
-  if (!supabase) return
-  for (const id of photoIdsFor(data)) {
-    if (uploadedIds.has(id)) continue
-    const photo = await getPhoto(id)
-    if (!photo) continue
-    const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(`${userId}/${id}`, photo.blob, {
-      contentType: photo.blob.type || undefined,
-      cacheControl: '31536000',
-      upsert: true,
-    })
-    if (error) throw error
-    uploadedIds.add(id)
-  }
-}
-
-async function pushCloudState(data: AppData, userId: string, uploadedIds: Set<string>) {
-  if (!supabase) return
-  await uploadLocalPhotos(data, userId, uploadedIds)
-  const { error } = await supabase.from('app_state').upsert({
-    user_id: userId,
-    data,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' })
-  if (error) throw error
+function errorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback
+  const message = error.message.replace(/^\[CONVEX[^\]]*\]\s*/i, '').trim()
+  return message || fallback
 }
 
 export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<AppData>>) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [status, setStatus] = useState<CloudSyncStatus>(cloudConfigured ? 'sign-in' : 'local')
-  const [message, setMessage] = useState(cloudConfigured ? '' : 'add supabase keys to enable cross-device sync')
+  const configured = Boolean(import.meta.env.VITE_CONVEX_URL?.trim())
+  const convex = useConvex()
+  const { isLoading, isAuthenticated } = useConvexAuth()
+  const { signIn, signOut: endAuthSession } = useAuthActions()
+  const currentUser = useQuery(api.sync.currentUser, isAuthenticated ? {} : 'skip')
+  const cloudState = useQuery(api.sync.getState, isAuthenticated ? {} : 'skip')
+  const saveState = useMutation(api.sync.saveState)
+  const generatePhotoUploadUrl = useMutation(api.sync.generatePhotoUploadUrl)
+  const saveCloudPhoto = useMutation(api.sync.savePhoto)
+  const pruneCloudPhotos = useMutation(api.sync.prunePhotos)
+  const [status, setStatus] = useState<CloudSyncStatus>('syncing')
+  const [message, setMessage] = useState('opening your private cloud')
   const [connectionRevision, setConnectionRevision] = useState(0)
   const dataRef = useRef(data)
   const applyingRemoteRef = useRef(false)
   const initializedUserRef = useRef<string | null>(null)
   const uploadedIdsRef = useRef(new Set<string>())
-  const sessionUserId = session?.user.id
+  const userId = currentUser?.id
 
   useEffect(() => {
     dataRef.current = data
   }, [data])
 
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    supabase.auth.getSession().then(({ data: result }) => {
-      if (active) setSession(result.session)
-    })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!active) return
-      setSession(nextSession)
-      if (!nextSession) {
-        setStatus('sign-in')
-        setMessage('sign in once to keep every device together')
-      }
-    })
-    return () => {
-      active = false
-      listener.subscription.unsubscribe()
+  const downloadMissingPhotos = useCallback(async (remote: AppData) => {
+    for (const id of photoIdsFor(remote)) {
+      if (await getPhoto(id)) continue
+      const photo = await convex.query(api.sync.getPhoto, { clientId: id })
+      if (!photo?.url) continue
+      const response = await fetch(photo.url)
+      if (!response.ok) throw new Error(`photo ${id} could not be downloaded`)
+      const blob = await response.blob()
+      await putPhoto({
+        id,
+        blob,
+        name: photo.name,
+        createdAt: photo.createdAt,
+      })
     }
-  }, [])
+  }, [convex])
 
+  const uploadLocalPhotos = useCallback(async (next: AppData) => {
+    for (const id of photoIdsFor(next)) {
+      if (uploadedIdsRef.current.has(id)) continue
+      const existing = await convex.query(api.sync.getPhoto, { clientId: id })
+      if (existing) {
+        uploadedIdsRef.current.add(id)
+        continue
+      }
+      const photo = await getPhoto(id)
+      if (!photo) continue
+      const uploadUrl = await generatePhotoUploadUrl()
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': photo.blob.type || 'application/octet-stream' },
+        body: photo.blob,
+      })
+      if (!response.ok) throw new Error(`photo ${id} could not be uploaded`)
+      const { storageId } = await response.json() as { storageId: string }
+      await saveCloudPhoto({
+        clientId: id,
+        storageId: storageId as Id<'_storage'>,
+        name: photo.name,
+        contentType: photo.blob.type || undefined,
+        createdAt: photo.createdAt,
+      })
+      uploadedIdsRef.current.add(id)
+    }
+  }, [convex, generatePhotoUploadUrl, saveCloudPhoto])
+
+  const pushCloudState = useCallback(async (next: AppData) => {
+    const photoIds = photoIdsFor(next)
+    await uploadLocalPhotos(next)
+    await saveState({ data: next, updatedAt: next.updatedAt })
+    await pruneCloudPhotos({ activeClientIds: photoIds })
+  }, [pruneCloudPhotos, saveState, uploadLocalPhotos])
+
+  // Sync status intentionally mirrors the external Convex auth/query state.
+  // oxlint-disable react/set-state-in-effect
   useEffect(() => {
-    const client = supabase
-    if (!client) return
-    if (!sessionUserId) {
+    if (!configured) {
+      setStatus('local')
+      setMessage('saved on this device')
+      return
+    }
+    if (isLoading) {
+      setStatus('syncing')
+      setMessage('opening your private cloud')
+      return
+    }
+    if (!isAuthenticated) {
       initializedUserRef.current = null
       uploadedIdsRef.current.clear()
+      setStatus('sign-in')
+      setMessage('sign in once to keep every device together')
+      return
+    }
+    if (!userId || cloudState === undefined) {
+      setStatus(navigator.onLine ? 'syncing' : 'offline')
+      setMessage(navigator.onLine ? 'checking the latest copy' : 'saved locally; waiting for a connection')
       return
     }
 
     let active = true
-    let channel: ReturnType<typeof client.channel> | undefined
-
-    const applyRemote = async (row: CloudStateRow) => {
-      const remote = migrateAppData(row.data)
-      if (JSON.stringify(remote) === JSON.stringify(dataRef.current)) return
-      await downloadMissingPhotos(remote, sessionUserId)
-      if (!active) return
-      applyingRemoteRef.current = true
-      dataRef.current = remote
-      setData(remote)
-    }
-
-    const initialise = async () => {
-      setStatus(navigator.onLine ? 'syncing' : 'offline')
-      setMessage(navigator.onLine ? 'checking the latest copy' : 'saved locally; waiting for a connection')
-      if (!navigator.onLine) return
-
+    const reconcile = async () => {
+      if (!navigator.onLine) {
+        setStatus('offline')
+        setMessage('saved locally; waiting for a connection')
+        return
+      }
       try {
-        const { data: row, error } = await client
-          .from('app_state')
-          .select('data, updated_at')
-          .eq('user_id', sessionUserId)
-          .maybeSingle()
-        if (error) throw error
-
-        const linkedUser = window.localStorage.getItem('snoopytools:cloud-user')
-        if (row) {
-          const remote = migrateAppData((row as CloudStateRow).data)
-          const remoteIsNewer = Date.parse(remote.updatedAt) >= Date.parse(dataRef.current.updatedAt)
-          const localHasPersonalData = hasPersonalData(dataRef.current)
-          const remoteHasPersonalData = hasPersonalData(remote)
-          const shouldPullRemote = linkedUser === sessionUserId
-            ? remoteIsNewer
-            : remoteHasPersonalData && (!localHasPersonalData || remoteIsNewer)
-          if (shouldPullRemote) await applyRemote(row as CloudStateRow)
-          else await pushCloudState(dataRef.current, sessionUserId, uploadedIdsRef.current)
-        } else {
-          await pushCloudState(dataRef.current, sessionUserId, uploadedIdsRef.current)
+        if (initializedUserRef.current !== userId) {
+          setStatus('syncing')
+          setMessage('checking the latest copy')
+          if (cloudState) {
+            const remote = migrateAppData(cloudState.data)
+            const linkedUser = window.localStorage.getItem('snoopytools:cloud-user')
+            const remoteIsNewer = Date.parse(remote.updatedAt) >= Date.parse(dataRef.current.updatedAt)
+            const localHasPersonalData = hasPersonalData(dataRef.current)
+            const remoteHasPersonalData = hasPersonalData(remote)
+            const shouldPullRemote = linkedUser === userId
+              ? remoteIsNewer
+              : remoteHasPersonalData && (!localHasPersonalData || remoteIsNewer)
+            if (shouldPullRemote) {
+              await downloadMissingPhotos(remote)
+              if (!active) return
+              applyingRemoteRef.current = true
+              dataRef.current = remote
+              setData(remote)
+            } else {
+              await pushCloudState(dataRef.current)
+            }
+          } else {
+            await pushCloudState(dataRef.current)
+          }
+          if (!active) return
+          window.localStorage.setItem('snoopytools:cloud-user', userId)
+          initializedUserRef.current = userId
+          setStatus('synced')
+          setMessage('available here and on your other signed-in devices')
+          return
         }
 
+        if (!cloudState) return
+        const remote = migrateAppData(cloudState.data)
+        if (JSON.stringify(remote) === JSON.stringify(dataRef.current)) {
+          setStatus('synced')
+          setMessage('available here and on your other signed-in devices')
+          return
+        }
+        if (Date.parse(remote.updatedAt) < Date.parse(dataRef.current.updatedAt)) return
+        await downloadMissingPhotos(remote)
         if (!active) return
-        window.localStorage.setItem('snoopytools:cloud-user', sessionUserId)
-        initializedUserRef.current = sessionUserId
+        applyingRemoteRef.current = true
+        dataRef.current = remote
+        setData(remote)
         setStatus('synced')
-        setMessage('available here and on your other signed-in devices')
-
-        channel = client
-          .channel(`app-state:${sessionUserId}`)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'app_state',
-            filter: `user_id=eq.${sessionUserId}`,
-          }, async (payload) => {
-            const row = payload.new as unknown as CloudStateRow
-            if (!row?.data) return
-            try {
-              await applyRemote(row)
-              if (active) {
-                setStatus('synced')
-                setMessage('updated from another device')
-              }
-            } catch (error) {
-              if (active) {
-                setStatus('error')
-                setMessage(error instanceof Error ? error.message : 'could not apply the cloud update')
-              }
-            }
-          })
-          .subscribe()
+        setMessage('updated from another device')
       } catch (error) {
         if (!active) return
-        setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'cloud sync could not start')
+        setStatus(navigator.onLine ? 'error' : 'offline')
+        setMessage(errorMessage(error, 'cloud sync could not start'))
       }
     }
 
-    void initialise()
+    void reconcile()
     return () => {
       active = false
-      if (channel) void client.removeChannel(channel)
     }
-  }, [connectionRevision, sessionUserId, setData])
+  }, [cloudState, configured, connectionRevision, downloadMissingPhotos, isAuthenticated, isLoading, pushCloudState, setData, userId])
+  // oxlint-enable react/set-state-in-effect
 
   useEffect(() => {
-    const userId = session?.user.id
-    if (!supabase || !userId || initializedUserRef.current !== userId) return
+    if (!isAuthenticated || !userId || initializedUserRef.current !== userId) return
     if (applyingRemoteRef.current) {
       applyingRemoteRef.current = false
       return
@@ -213,16 +221,16 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       setStatus('syncing')
       setMessage('saving changes')
       try {
-        await pushCloudState(data, userId, uploadedIdsRef.current)
+        await pushCloudState(data)
         setStatus('synced')
         setMessage('available here and on your other signed-in devices')
       } catch (error) {
-        setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'changes are safe locally but not uploaded yet')
+        setStatus(navigator.onLine ? 'error' : 'offline')
+        setMessage(errorMessage(error, 'changes are safe locally but not uploaded yet'))
       }
     }, 900)
     return () => window.clearTimeout(timer)
-  }, [data, session?.user.id])
+  }, [data, isAuthenticated, pushCloudState, userId])
 
   useEffect(() => {
     const handleOffline = () => {
@@ -230,6 +238,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       setMessage('saved locally; changes will upload when you reconnect')
     }
     const handleOnline = () => {
+      initializedUserRef.current = null
       setStatus('syncing')
       setMessage('connection restored; checking the latest copy')
       setConnectionRevision((revision) => revision + 1)
@@ -242,52 +251,37 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     }
   }, [])
 
-  const signInWithApple = async () => {
-    if (!supabase) return
+  const signInWithPassword = async (email: string, password: string, flow: AuthFlow) => {
     setStatus('syncing')
-    setMessage('opening apple sign in')
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: window.location.origin },
-    })
-    if (error) {
+    setMessage(flow === 'signUp' ? 'creating your private account' : 'signing in')
+    const form = new FormData()
+    form.set('email', email.trim().toLowerCase())
+    form.set('password', password)
+    form.set('flow', flow)
+    try {
+      await signIn('password', form)
+    } catch (error) {
       setStatus('error')
-      setMessage(error.message)
+      setMessage(errorMessage(error, flow === 'signUp' ? 'account could not be created' : 'sign in failed'))
+      throw error
     }
-  }
-
-  const sendMagicLink = async (email: string) => {
-    if (!supabase) return
-    setStatus('syncing')
-    setMessage('sending a private sign-in link')
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    })
-    if (error) {
-      setStatus('error')
-      setMessage(error.message)
-      return
-    }
-    setStatus('sign-in')
-    setMessage('check your email, then open the link on this device')
   }
 
   const signOut = async () => {
-    if (!supabase) return
-    await supabase.auth.signOut()
+    await endAuthSession()
     initializedUserRef.current = null
+    uploadedIdsRef.current.clear()
     setStatus('sign-in')
     setMessage('signed out; local data stays on this device')
   }
 
   return {
-    configured: cloudConfigured,
+    configured,
     status,
     message,
-    email: session?.user.email,
-    signInWithApple,
-    sendMagicLink,
+    email: currentUser?.email ?? undefined,
+    authenticated: isAuthenticated,
+    signInWithPassword,
     signOut,
   }
 }

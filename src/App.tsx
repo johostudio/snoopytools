@@ -265,9 +265,20 @@ function PrimaryAction({ children, onClick, disabled = false }: { children: Reac
 
 function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; onClose: () => void }) {
   const [email, setEmail] = useState('')
-  const submitEmail = (event: FormEvent) => {
+  const [password, setPassword] = useState('')
+  const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
+  const [busy, setBusy] = useState(false)
+  const submitAccount = async (event: FormEvent) => {
     event.preventDefault()
-    if (email.trim()) void sync.sendMagicLink(email.trim())
+    if (!email.trim() || password.length < 8) return
+    setBusy(true)
+    try {
+      await sync.signInWithPassword(email, password, flow)
+    } catch {
+      // The sync message displays the private authentication error.
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -281,29 +292,38 @@ function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; o
       {!sync.configured && (
         <div className="sync-setup-note">
           <b>cloud connection needed</b>
-          <span>the app is keeping everything safely on this device. add the two supabase environment values and run the included setup sql to turn on account sync.</span>
+          <span>run the convex setup command in this project, then add its public deployment url to the app environment.</span>
         </div>
       )}
 
-      {sync.configured && !sync.email && (
+      {sync.configured && !sync.authenticated && (
         <>
-          <button className="sync-apple" onClick={() => void sync.signInWithApple()}>continue with apple</button>
-          <form className="sync-email" onSubmit={submitEmail}>
-            <label htmlFor="sync-email">or use a private email link</label>
-            <div><input id="sync-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /><button>send link</button></div>
+          <form className="sync-email" onSubmit={submitAccount}>
+            <label htmlFor="sync-email">private account</label>
+            <div className="sync-email__field">
+              <input id="sync-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" required />
+            </div>
+            <div className="sync-email__field">
+              <input name="password" type="password" autoComplete={flow === 'signUp' ? 'new-password' : 'current-password'} minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password · 8+ characters" required />
+            </div>
+            <button className="sync-email__submit" disabled={busy}>{busy ? 'working…' : flow === 'signIn' ? 'sign in' : 'create account'}</button>
           </form>
+          <button className="sync-mode" type="button" onClick={() => setFlow((current) => current === 'signIn' ? 'signUp' : 'signIn')}>
+            {flow === 'signIn' ? 'new here? create an account' : 'already have one? sign in'}
+          </button>
+          <p className="sync-apple-note">apple sign-in can be connected when the ios developer credentials are ready.</p>
         </>
       )}
 
-      {sync.email && (
+      {sync.authenticated && (
         <div className="sync-account">
           <span>signed in as</span>
-          <strong>{sync.email}</strong>
+          <strong>{sync.email ?? 'private account'}</strong>
           <button onClick={() => void sync.signOut()}>sign out</button>
         </div>
       )}
 
-      <small>notes and records stay in local storage. photos stay in indexeddb. while signed in, both are mirrored to your private cloud and restored on another device.</small>
+      <small>notes and records stay in local storage. photos stay in indexeddb. while signed in, both are mirrored to your private convex cloud and restored on another device.</small>
     </aside>
   )
 }

@@ -7,18 +7,26 @@
 3. Keep the repository root as `./` and use the detected **Vite** preset.
 4. Confirm these settings:
    - Install command: `npm install`
-   - Build command: `npm run build`
+   - Build command: `npx convex deploy --cmd "npm run build" --cmd-url-env-var-name VITE_CONVEX_URL`
    - Output directory: `dist`
-5. Select **Deploy**. Future pushes to `main` will update production; branches and pull requests receive preview deployments.
-6. Add a custom domain under **Project → Settings → Domains** if wanted.
+5. In the Convex dashboard, open the project's production deployment settings and generate a production deploy key with `deployment:deploy` permission.
+6. In Vercel, add the key as `CONVEX_DEPLOY_KEY` for the Production environment only. Treat this value as a secret.
+7. From this repository, initialize authentication on the production deployment using the final Vercel or custom domain:
 
-The deployed HTTPS origin allows the Golden Hour screen to request browser location after the user taps **Use my location**. No environment variables are required for this local-first build.
+   ```powershell
+   npx @convex-dev/auth --prod --web-server-url https://YOUR-SITE.vercel.app
+   ```
+
+8. Select **Deploy**. Future pushes to `main` will update both the Convex backend and Vercel frontend.
+9. Add a custom domain under **Project → Settings → Domains** if wanted. If the public origin changes, rerun the production auth command with that origin and redeploy.
+
+The Convex deploy command supplies `VITE_CONVEX_URL` to the Vite build. The deployed HTTPS origin also allows the Golden Hour screen to request browser location after the user taps **Use my location**.
 
 The current route map uses OpenStreetMap's public raster tiles with attribution. That is appropriate for development and a small personal install, but it is not a guaranteed production tile service. Before public or high-volume use, configure a production provider such as MapTiler, Mapbox, Stadia Maps, or a self-hosted tile service and follow that provider's terms.
 
 ### Install on iPhone now
 
-Open the deployed site in Safari, tap **Share**, then **Add to Home Screen**. This installs the existing PWA without an App Store release. Location still requires explicit permission, and the app's structured data remains on that device/browser until the sync backend in the product plan is built.
+Open the deployed site in Safari, tap **Share**, then **Add to Home Screen**. This installs the existing PWA without an App Store release. Location still requires explicit permission. Sign into the same in-app account on each device to restore and synchronize the private archive.
 
 ## Native iOS later
 
@@ -55,11 +63,9 @@ Native iOS building and App Store submission require macOS, Xcode, and Apple Dev
 
 ## Official references
 
+- [Convex on Vercel](https://docs.convex.dev/production/hosting/vercel)
+- [Convex Auth production setup](https://labs.convex.dev/auth/production)
 - [Vercel Git deployments](https://vercel.com/docs/git)
-- [Vercel deployment overview](https://vercel.com/docs/deployments/overview)
 - [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [Capacitor installation](https://capacitorjs.com/docs/getting-started)
-- [Capacitor environment setup](https://capacitorjs.com/docs/getting-started/environment-setup)
 - [App Store Connect workflow](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-workflow)
-- [Upload an app build](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
-- [Submit an app for review](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app/)
