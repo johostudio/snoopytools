@@ -3,6 +3,17 @@ import { estimateFlightMinutes, findAirport } from './data/airports'
 export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers'
 export type AppTheme = 'moss' | 'blue' | 'plum' | 'amber'
 
+export interface UserProfile {
+  displayName: string
+  subtitle: string
+  photoId?: string
+}
+
+export const DEFAULT_PROFILE: UserProfile = {
+  displayName: "snoopy's home;",
+  subtitle: "'everything i've ever wanted' - tiffany day",
+}
+
 export interface RoutineItem {
   id: string
   text: string
@@ -90,7 +101,7 @@ export interface FlightHistoryEntry {
 }
 
 export interface AppData {
-  version: 6
+  version: 7
   routines: Routine[]
   moment: {
     label: string
@@ -105,6 +116,7 @@ export interface AppData {
   flightHistory: FlightHistoryEntry[]
   preferences: {
     theme: AppTheme
+    profile: UserProfile
   }
   updatedAt: string
 }
@@ -116,7 +128,7 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 6,
+    version: 7,
     routines: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
@@ -139,6 +151,7 @@ export function createInitialState(): AppData {
     flightHistory: [],
     preferences: {
       theme: 'moss',
+      profile: { ...DEFAULT_PROFILE },
     },
     updatedAt: now.toISOString(),
   }
@@ -161,8 +174,17 @@ export function migrateAppData(input: unknown): AppData {
   const moment = candidate.moment && typeof candidate.moment === 'object' ? { ...defaults.moment, ...candidate.moment } : defaults.moment
   const focusFlight = candidate.focusFlight && typeof candidate.focusFlight === 'object' ? { ...defaults.focusFlight, ...candidate.focusFlight } : defaults.focusFlight
   const flightHistory = Array.isArray(candidate.flightHistory) ? candidate.flightHistory : defaults.flightHistory
-  const preferences = candidate.preferences && typeof candidate.preferences === 'object'
-    ? { ...defaults.preferences, ...candidate.preferences }
+  const candidatePreferences = candidate.preferences && typeof candidate.preferences === 'object'
+    ? candidate.preferences
+    : undefined
+  const preferences = candidatePreferences
+    ? {
+        ...defaults.preferences,
+        ...candidatePreferences,
+        profile: candidatePreferences.profile && typeof candidatePreferences.profile === 'object'
+          ? { ...DEFAULT_PROFILE, ...candidatePreferences.profile }
+          : { ...DEFAULT_PROFILE },
+      }
     : defaults.preferences
 
   if (legacy && moment.label === 'The next good thing') moment.label = ''
@@ -176,7 +198,7 @@ export function migrateAppData(input: unknown): AppData {
   return {
     ...defaults,
     ...candidate,
-    version: 6,
+    version: 7,
     routines,
     notes,
     trackers,

@@ -187,6 +187,11 @@ function StoredImage({ photoId, alt, className = '' }: { photoId?: string; alt: 
   return <img className={className} src={url} alt={alt} />
 }
 
+function ProfileAvatar({ photoId, className = '' }: { photoId?: string; className?: string }) {
+  const url = usePhotoUrl(photoId)
+  return <img className={className} src={url ?? '/favicon.ico'} alt="" aria-hidden="true" />
+}
+
 function PhotoPicker({
   photoIds,
   multiple = false,
@@ -263,7 +268,30 @@ function PrimaryAction({ children, onClick, disabled = false }: { children: Reac
   )
 }
 
-function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; onClose: () => void }) {
+function OptionalCalendarAction({
+  enabled,
+  onEnabledChange,
+  status,
+  children,
+}: {
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+  status?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={`calendar-option ${enabled ? 'is-open' : ''}`}>
+      <label className="calendar-option__toggle">
+        <input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange(event.target.checked)} />
+        <span><strong>also share to apple calendar</strong><small>optional · open the ios share sheet for calendar or mail</small></span>
+      </label>
+      {enabled && <div className="calendar-option__body">{children}</div>}
+      {status && <output className="action-status">{status}</output>}
+    </div>
+  )
+}
+
+function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
@@ -284,12 +312,41 @@ function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; o
       setBusy(false)
     }
   }
+  const updateProfile = (patch: Partial<AppData['preferences']['profile']>) => setData((current) => ({
+    ...current,
+    preferences: {
+      ...current.preferences,
+      profile: { ...current.preferences.profile, ...patch },
+    },
+    updatedAt: new Date().toISOString(),
+  }))
+  const updateTheme = (theme: AppTheme) => setData((current) => ({
+    ...current,
+    preferences: { ...current.preferences, theme },
+    updatedAt: new Date().toISOString(),
+  }))
+  const profile = data.preferences.profile
 
   return (
     <aside className="sync-panel paper-texture" aria-label="sync settings">
-      <button className="sync-panel__close" onClick={onClose} aria-label="close sync settings">×</button>
-      <span className="folio">personal cloud / 同期</span>
+      <button type="button" className="sync-panel__close" onClick={onClose} aria-label="close profile and sync settings">×</button>
+      <span className="folio">profile + personal cloud / 同期</span>
       <h2>everywhere,<br />even offline.</h2>
+
+      <section className="profile-editor" aria-labelledby="profile-editor-title">
+        <div className="profile-editor__identity">
+          <ProfileAvatar photoId={profile.photoId} />
+          <div><span id="profile-editor-title">your profile</span><strong>{profile.displayName || "snoopy's home"}</strong></div>
+        </div>
+        <label><span>display name</span><input value={profile.displayName} onChange={(event) => updateProfile({ displayName: event.target.value })} placeholder="snoopy's home" /></label>
+        <label><span>subtitle</span><input value={profile.subtitle} onChange={(event) => updateProfile({ subtitle: event.target.value })} placeholder="a small line about this place" /></label>
+        <PhotoPicker photoIds={profile.photoId ? [profile.photoId] : []} onChange={(ids) => updateProfile({ photoId: ids[0] })} />
+        <div className="profile-themes" aria-label="colour theme">
+          <span>colour</span>
+          <div>{THEMES.map((theme) => <button type="button" key={theme.id} className={data.preferences.theme === theme.id ? 'is-active' : ''} onClick={() => updateTheme(theme.id)} aria-label={`${theme.label} theme`}><i /></button>)}</div>
+        </div>
+      </section>
+
       <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.status}</strong></div>
       <p>{sync.message}</p>
 
@@ -476,6 +533,8 @@ function BirthdayCardStudio({ birthday, onClose }: { birthday: Birthday; onClose
 function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [selectedId, setSelectedId] = useState(data.birthdays[0]?.id ?? '')
   const [cardMode, setCardMode] = useState(false)
+  const [calendarEnabled, setCalendarEnabled] = useState(false)
+  const [calendarStatus, setCalendarStatus] = useState('')
   const selected = data.birthdays.find((birthday) => birthday.id === selectedId) ?? data.birthdays[0]
 
   const update = (patch: Partial<Birthday>) => {
@@ -499,6 +558,19 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
     setData((current) => ({ ...current, birthdays: [...current.birthdays, birthday], updatedAt: new Date().toISOString() }))
     setSelectedId(birthday.id)
     setCardMode(false)
+    setCalendarEnabled(false)
+    setCalendarStatus('')
+  }
+
+  const shareCalendar = async () => {
+    if (!selected) return
+    setCalendarStatus('preparing…')
+    try {
+      const result = await addBirthdayToAppleCalendar(selected)
+      setCalendarStatus(result === 'shared' ? 'share sheet opened' : 'calendar file downloaded')
+    } catch (error) {
+      setCalendarStatus(error instanceof DOMException && error.name === 'AbortError' ? 'share cancelled' : 'calendar file could not be made')
+    }
   }
 
   if (selected && cardMode) return <BirthdayCardStudio birthday={selected} onClose={() => setCardMode(false)} />
@@ -516,7 +588,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
             .slice()
             .sort((a, b) => birthdayDistance(a.date) - birthdayDistance(b.date))
             .map((birthday, index) => (
-              <button key={birthday.id} className={birthday.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(birthday.id); setCardMode(false) }}>
+              <button key={birthday.id} className={birthday.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(birthday.id); setCardMode(false); setCalendarEnabled(false); setCalendarStatus('') }}>
                 <span>{pad(index + 1)}</span>
                 <div><strong>{birthday.name || 'untitled'}</strong><small>{formatBirthday(birthday.date)}</small></div>
                 <em>{birthdayDistance(birthday.date)}d</em>
@@ -541,24 +613,26 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
               <div className="field-grid">
                 <Field label="NAME"><input value={selected.name} onChange={(event) => update({ name: event.target.value })} placeholder="name" /></Field>
                 <Field label="BIRTHDAY"><input type="date" value={selected.date} onChange={(event) => update({ date: event.target.value })} /></Field>
-                <Field label="APPLE CALENDAR REMINDER">
-                  <select value={selected.reminderDays} onChange={(event) => update({ reminderDays: Number(event.target.value) })}>
-                    <option value={0}>On the day</option>
-                    <option value={1}>1 day before</option>
-                    <option value={3}>3 days before</option>
-                    <option value={7}>1 week before</option>
-                    <option value={14}>2 weeks before</option>
-                    <option value={30}>1 month before</option>
-                  </select>
-                </Field>
                 <Field label="IMPORTANT NOTES" wide><textarea rows={5} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
                 <Field label="GIFT + PLAN IDEAS" wide><textarea rows={3} value={selected.giftIdeas} onChange={(event) => update({ giftIdeas: event.target.value })} /></Field>
               </div>
               <div className="editor-actions">
-                <PrimaryAction onClick={() => addBirthdayToAppleCalendar(selected)}>ADD + REMIND IN APPLE CALENDAR</PrimaryAction>
+                <OptionalCalendarAction enabled={calendarEnabled} onEnabledChange={(enabled) => { setCalendarEnabled(enabled); setCalendarStatus('') }} status={calendarStatus}>
+                  <Field label="remind me">
+                    <select value={selected.reminderDays} onChange={(event) => update({ reminderDays: Number(event.target.value) })}>
+                      <option value={0}>on the day</option>
+                      <option value={1}>1 day before</option>
+                      <option value={3}>3 days before</option>
+                      <option value={7}>1 week before</option>
+                      <option value={14}>2 weeks before</option>
+                      <option value={30}>1 month before</option>
+                    </select>
+                  </Field>
+                  <PrimaryAction onClick={() => void shareCalendar()}>share calendar file / mail</PrimaryAction>
+                </OptionalCalendarAction>
                 <button className="paper-action" onClick={() => setCardMode(true)}>MAKE A BIRTHDAY CARD ↗</button>
               </div>
-              <p className="support-note">Exports a yearly Apple Calendar event with your selected alert. Notes stay attached to the event.</p>
+              <p className="support-note">the person is saved to your tracker automatically. calendar sharing is optional.</p>
             </div>
           </section>
         )}
@@ -570,6 +644,8 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
 
 function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [selectedId, setSelectedId] = useState(data.concerts[0]?.id ?? '')
+  const [calendarEnabled, setCalendarEnabled] = useState(false)
+  const [calendarStatus, setCalendarStatus] = useState('')
   const selected = data.concerts.find((concert) => concert.id === selectedId) ?? data.concerts[0]
 
   const update = (patch: Partial<Concert>) => {
@@ -592,6 +668,19 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
     }
     setData((current) => ({ ...current, concerts: [...current.concerts, concert], updatedAt: new Date().toISOString() }))
     setSelectedId(concert.id)
+    setCalendarEnabled(false)
+    setCalendarStatus('')
+  }
+
+  const shareCalendar = async () => {
+    if (!selected) return
+    setCalendarStatus('preparing…')
+    try {
+      const result = await addConcertToAppleCalendar(selected)
+      setCalendarStatus(result === 'shared' ? 'share sheet opened' : 'calendar file downloaded')
+    } catch (error) {
+      setCalendarStatus(error instanceof DOMException && error.name === 'AbortError' ? 'share cancelled' : 'calendar file could not be made')
+    }
   }
 
   return (
@@ -604,7 +693,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
         <aside className="concert-index reveal">
           <span>SHOW INDEX / 記録</span>
           {data.concerts.map((concert, index) => (
-            <button key={concert.id} className={concert.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(concert.id)}>
+            <button key={concert.id} className={concert.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(concert.id); setCalendarEnabled(false); setCalendarStatus('') }}>
               <em>{pad(index + 1)}</em>
               <div><strong>{concert.artist || 'untitled'}</strong><small>{concert.venue || 'no venue'}</small></div>
               <time>{new Intl.DateTimeFormat('en-US', { month: '2-digit', year: '2-digit' }).format(new Date(concert.dateTime))}</time>
@@ -637,7 +726,10 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
                 <Field label="WHAT I WANT TO REMEMBER" wide><textarea rows={4} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
               </div>
               <PhotoPicker photoIds={selected.photoIds} multiple onChange={(photoIds) => update({ photoIds })} />
-              <PrimaryAction onClick={() => addConcertToAppleCalendar(selected)}>ADD SHOW TO APPLE CALENDAR</PrimaryAction>
+              <OptionalCalendarAction enabled={calendarEnabled} onEnabledChange={(enabled) => { setCalendarEnabled(enabled); setCalendarStatus('') }} status={calendarStatus}>
+                <PrimaryAction onClick={() => void shareCalendar()}>share calendar file / mail</PrimaryAction>
+              </OptionalCalendarAction>
+              <p className="support-note">the concert is saved to your tracker automatically. calendar sharing is optional.</p>
             </div>
           </section>
         )}
@@ -1104,8 +1196,8 @@ function App() {
       <div className="global-grain" aria-hidden="true" />
       <header className="app-chrome">
         <button className="brand-lockup" onClick={() => setActiveView('today')}>
-          <img src="/favicon.ico" alt="" aria-hidden="true" />
-          <span className="brand-copy"><strong>snoopy's home;</strong><small>'everything i've ever wanted' - tiffany day</small></span>
+          <ProfileAvatar photoId={data.preferences.profile.photoId} />
+          <span className="brand-copy"><strong>{data.preferences.profile.displayName || "snoopy's home"}</strong><small>{data.preferences.profile.subtitle}</small></span>
         </button>
         <nav aria-label="Main tools">
           {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => setActiveView(item.id)}><span>{item.number}</span>{item.label}</button>)}
@@ -1114,11 +1206,11 @@ function App() {
           <div className="theme-switcher" aria-label="colour theme">
             {THEMES.map((theme) => <button key={theme.id} className={data.preferences.theme === theme.id ? 'is-active' : ''} onClick={() => changeTheme(theme.id)} aria-label={`${theme.label} theme`} title={`${theme.label} theme`}><i /></button>)}
           </div>
-          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open sync settings"><i /> {sync.status === 'sign-in' ? 'local' : sync.status} <span>{activeIndex}/08</span></button>
+          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open profile and sync settings"><i /> {sync.status === 'sign-in' ? 'profile' : sync.status} <span>{activeIndex}/08</span></button>
         </div>
       </header>
 
-      {syncOpen && <SyncPanel sync={sync} onClose={() => setSyncOpen(false)} />}
+      {syncOpen && <SyncPanel sync={sync} data={data} setData={setData} onClose={() => setSyncOpen(false)} />}
 
       <aside className="issue-rail">
         <span>snoopy's home</span>

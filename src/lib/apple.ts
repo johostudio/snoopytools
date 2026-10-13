@@ -34,7 +34,7 @@ function saveFile(file: File) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
 }
 
-export function addBirthdayToAppleCalendar(birthday: Birthday) {
+export async function addBirthdayToAppleCalendar(birthday: Birthday) {
   const next = nextBirthdayDate(birthday)
   const lines = [
     'BEGIN:VCALENDAR',
@@ -56,10 +56,15 @@ export function addBirthdayToAppleCalendar(birthday: Birthday) {
     'END:VEVENT',
     'END:VCALENDAR',
   ]
-  saveFile(new File([lines.join('\r\n')], `${birthday.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-birthday.ics`, { type: 'text/calendar' }))
+  const file = new File(
+    [lines.join('\r\n')],
+    `${birthday.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'birthday'}-birthday.ics`,
+    { type: 'text/calendar' },
+  )
+  return shareOrDownload(file, `${birthday.name || 'birthday'} calendar reminder`, 'add this yearly birthday reminder to your calendar, or send it by mail.')
 }
 
-export function addConcertToAppleCalendar(concert: Concert) {
+export async function addConcertToAppleCalendar(concert: Concert) {
   const start = new Date(concert.dateTime)
   const end = new Date(start.getTime() + 3 * 60 * 60 * 1_000)
   const endValue = `${end.getFullYear()}${String(end.getMonth() + 1).padStart(2, '0')}${String(end.getDate()).padStart(2, '0')}T${String(end.getHours()).padStart(2, '0')}${String(end.getMinutes()).padStart(2, '0')}00`
@@ -89,7 +94,12 @@ export function addConcertToAppleCalendar(concert: Concert) {
     'END:VEVENT',
     'END:VCALENDAR',
   ]
-  saveFile(new File([lines.join('\r\n')], `${concert.artist.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.ics`, { type: 'text/calendar' }))
+  const file = new File(
+    [lines.join('\r\n')],
+    `${concert.artist.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'concert'}.ics`,
+    { type: 'text/calendar' },
+  )
+  return shareOrDownload(file, `${concert.artist || 'concert'} calendar event`, 'add this concert to your calendar, or send it by mail.')
 }
 
 export async function shareOrDownload(file: File, title: string, text: string) {

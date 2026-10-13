@@ -3,7 +3,7 @@ import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { migrateAppData, type AppData } from '../domain'
+import { DEFAULT_PROFILE, migrateAppData, type AppData } from '../domain'
 import { getPhoto, putPhoto } from '../lib/photoStore'
 
 export type CloudSyncStatus = 'local' | 'sign-in' | 'syncing' | 'synced' | 'offline' | 'error'
@@ -11,9 +11,10 @@ export type AuthFlow = 'signIn' | 'signUp'
 
 function photoIdsFor(data: AppData) {
   return [...new Set([
+    data.preferences.profile.photoId,
     ...data.birthdays.map((birthday) => birthday.photoId).filter((id): id is string => Boolean(id)),
     ...data.concerts.flatMap((concert) => concert.photoIds),
-  ])]
+  ].filter((id): id is string => Boolean(id)))]
 }
 
 function hasPersonalData(data: AppData) {
@@ -25,6 +26,9 @@ function hasPersonalData(data: AppData) {
     || data.flightHistory.length > 0
     || Boolean(data.moment.label.trim())
     || data.focusFlight.status !== 'idle'
+    || data.preferences.profile.displayName !== DEFAULT_PROFILE.displayName
+    || data.preferences.profile.subtitle !== DEFAULT_PROFILE.subtitle
+    || Boolean(data.preferences.profile.photoId)
 }
 
 function errorMessage(error: unknown, fallback: string) {
