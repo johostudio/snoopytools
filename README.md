@@ -19,7 +19,7 @@ Then open the local URL Vite prints. The app is responsive and installable as a 
 - Concert-only archive with date, venue, city, companions, openers/side artists, notes, and multiple photos
 - Apple Calendar concert exports with the full event context and an alert
 - A location-aware golden-hour desk with sunrise, morning gold, evening gold, sunset, and a live countdown
-- Airport-to-airport focus flights with a duration-controlled countdown, moving route map, pause/resume, a takeoff intention, and a sealed arrival note
+- Airport-to-airport focus flights with a route-estimated countdown, moving route map, pause/resume, a takeoff intention, and a sealed arrival note
 - Live YVR, KHN, YYZ, SIN, HEL, LHR, YEG, MYY, and ICN clocks in the desktop side rail
 - Ordered repeatable lists with completion, reset, add, and remove actions
 - One live point-in-time counter that automatically switches between “until” and “since”
@@ -31,6 +31,8 @@ Then open the local URL Vite prints. The app is responsive and installable as a 
 - An empty first-run state with no sample people, events, messages, notes, lists, or tracker data
 
 Structured data is intentionally local-only in this first boilerplate, with photos stored as blobs in IndexedDB. Changes propagate between tabs on the same browser, but iPhone-to-desktop cloud sync is not simulated. The next product phase adds accounts, object storage, and an offline mutation queue.
+
+Focus-flight time is estimated on-device from the direct great-circle distance, a nominal cruise speed, and airport overhead. It is a study-session estimate, not live airline schedule data.
 
 ## Apple notes
 

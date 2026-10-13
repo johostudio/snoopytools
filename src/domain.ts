@@ -1,3 +1,5 @@
+import { estimateFlightMinutes, findAirport } from './data/airports'
+
 export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers'
 
 export interface RoutineItem {
@@ -73,7 +75,7 @@ export interface FocusFlight {
 }
 
 export interface AppData {
-  version: 4
+  version: 5
   routines: Routine[]
   moment: {
     label: string
@@ -95,7 +97,7 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 4,
+    version: 5,
     routines: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
@@ -110,7 +112,7 @@ export function createInitialState(): AppData {
     focusFlight: {
       originCode: 'YVR',
       destinationCode: 'KHN',
-      durationMinutes: 50,
+      durationMinutes: estimateFlightMinutes(findAirport('YVR'), findAirport('KHN')),
       intention: '',
       arrivalMessage: '',
       status: 'idle',
@@ -123,7 +125,8 @@ export function migrateAppData(input: unknown): AppData {
   const defaults = createInitialState()
   if (!input || typeof input !== 'object') return defaults
   const candidate = input as Partial<AppData>
-  const legacy = Number((candidate as { version?: number }).version ?? 0) < 4
+  const candidateVersion = Number((candidate as { version?: number }).version ?? 0)
+  const legacy = candidateVersion < 4
   const omitLegacySeeds = <T extends { id: string }>(items: T[], seedIds: string[]) => (
     legacy ? items.filter((item) => !seedIds.includes(item.id)) : items
   )
@@ -139,11 +142,14 @@ export function migrateAppData(input: unknown): AppData {
   if (legacy && focusFlight.intention === 'Finish one honest, uninterrupted block of study.') focusFlight.intention = ''
   if (legacy && focusFlight.arrivalMessage === 'You made it. Close the book, breathe, and notice what is clearer now.') focusFlight.arrivalMessage = ''
   if (legacy && focusFlight.originCode === 'YVR' && focusFlight.destinationCode === 'HND') focusFlight.destinationCode = 'KHN'
+  if (candidateVersion < 5 && focusFlight.status === 'idle') {
+    focusFlight.durationMinutes = estimateFlightMinutes(findAirport(focusFlight.originCode), findAirport(focusFlight.destinationCode))
+  }
 
   return {
     ...defaults,
     ...candidate,
-    version: 4,
+    version: 5,
     routines,
     notes,
     trackers,

@@ -1991,20 +1991,20 @@ button {
 
 .flight-airports > span { padding-bottom: 12px; font-size: 22px; font-weight: 350; }
 
-.flight-duration {
+.flight-estimate {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 9px 14px;
+  align-items: end;
+  gap: 7px 16px;
   margin-bottom: 24px;
+  padding: 17px 0 18px;
+  border-top: 1px solid rgba(21,27,24,.24);
+  border-bottom: 1px solid rgba(21,27,24,.24);
 }
 
-.flight-duration > span { font-size: 8px; font-weight: 760; letter-spacing: .12em; }
-.flight-duration > div { display: flex; gap: 5px; }
-.flight-duration > div button { width: 42px; padding: 7px 0; border: 1px solid rgba(21,27,24,.2); color: var(--ink); background: transparent; font-size: 9px; }
-.flight-duration > div button.is-active { color: var(--cream); background: var(--sage); }
-.flight-duration > label { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; border-bottom: 1px solid rgba(21,27,24,.3); }
-.flight-duration input { width: 100%; padding: 8px 0; border: 0; color: var(--ink); background: transparent; font-size: 24px; font-weight: 650; outline: 0; }
-.flight-duration label small { font-size: 8px; font-weight: 750; letter-spacing: .1em; opacity: .5; }
+.flight-estimate > span { font-size: 8px; font-weight: 760; letter-spacing: .12em; }
+.flight-estimate > strong { font-size: clamp(32px, 4vw, 54px); font-weight: 650; letter-spacing: -.085em; line-height: .82; }
+.flight-estimate > small { grid-column: 1 / -1; font-family: 'Inconsolata', monospace; font-size: 8px; font-weight: 620; letter-spacing: .06em; opacity: .5; }
 .flight-console > .editor-field { margin-bottom: 18px; }
 .flight-console > .primary-action { margin-top: 26px; }
 

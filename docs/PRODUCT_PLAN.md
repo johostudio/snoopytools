@@ -9,7 +9,7 @@ Snoopy's Home should feel smaller than the sum of its features. It is not a gene
 1. **Birthday archive** — upcoming birthdays, advance alerts, personal notes, gift ideas, a portrait, and shareable birthday-card artwork.
 2. **Concert archive** — concert-only memories with venue, city, companions, openers and side artists, notes, and multiple photos.
 3. **Golden hour** — location-aware sunrise, golden-hour windows, sunset, and a countdown to the next light event.
-4. **Focus flight** — a study timer framed as an airport journey, with a moving route map, takeoff intention, and a private note revealed on arrival. Route distance is atmosphere; the chosen focus duration remains authoritative.
+4. **Focus flight** — a study timer framed as an airport journey, with a moving route map, takeoff intention, and a private note revealed on arrival. The selected route's estimated flight time is the countdown duration.
 5. **Repeat lists** — ordered checklists designed to complete and reset, with optional reset schedules.
 6. **Point in time** — one primary event that counts up or down with minute/second precision.
 7. **Notes** — fast plain-text capture, not a document database.
@@ -51,7 +51,7 @@ This gives instant local writes on iPhone and desktop while making network inter
 - Birthday and concert archives with local photo attachments
 - Apple Calendar exports and birthday-card sharing
 - Golden-hour calculations with opt-in browser geolocation
-- Duration-based focus flights with a real airport route map and sealed arrival message
+- Route-estimated focus flights with a real airport route map and sealed arrival message
 - Reference-matched visual system
 - Install/offline shell
 

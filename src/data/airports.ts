@@ -48,3 +48,24 @@ export const AIRPORTS: Airport[] = [
 export function findAirport(code: string) {
   return AIRPORTS.find((airport) => airport.code === code) ?? AIRPORTS[0]
 }
+
+const toRadians = (degrees: number) => degrees * Math.PI / 180
+
+export function routeDistanceKm(origin: Airport, destination: Airport) {
+  const earthRadiusKm = 6_371
+  const latitudeDelta = toRadians(destination.latitude - origin.latitude)
+  const longitudeDelta = toRadians(destination.longitude - origin.longitude)
+  const originLatitude = toRadians(origin.latitude)
+  const destinationLatitude = toRadians(destination.latitude)
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(originLatitude) * Math.cos(destinationLatitude) * Math.sin(longitudeDelta / 2) ** 2
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+export function estimateFlightMinutes(origin: Airport, destination: Airport) {
+  if (origin.code === destination.code) return 0
+  const distanceKm = routeDistanceKm(origin, destination)
+  const cruiseMinutes = distanceKm / 850 * 60
+  const airportOverheadMinutes = distanceKm < 1_000 ? 35 : distanceKm < 4_000 ? 45 : 55
+  return Math.max(45, Math.round((cruiseMinutes + airportOverheadMinutes) / 5) * 5)
+}

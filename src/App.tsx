@@ -13,7 +13,7 @@ import {
 import * as SunCalc from 'suncalc'
 import './App.css'
 import { FlightMap } from './components/FlightMap'
-import { AIRPORTS, findAirport } from './data/airports'
+import { AIRPORTS, estimateFlightMinutes, findAirport, routeDistanceKm } from './data/airports'
 import {
   createInitialState,
   migrateAppData,
@@ -54,6 +54,14 @@ function formatTimer(totalSeconds: number) {
   const minutes = Math.floor((safeSeconds % 3_600) / 60)
   const seconds = safeSeconds % 60
   return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+}
+
+function formatFlightDuration(totalMinutes: number) {
+  if (totalMinutes <= 0) return '—'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes} min`
+  return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
 }
 
 const AIRPORT_CLOCKS = [
@@ -295,7 +303,7 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         <button className="archive-teaser flight-teaser" onClick={() => onNavigate('flight')}>
           <span>FOCUS FLIGHT / 集中</span>
           <strong>{data.focusFlight.originCode} → {data.focusFlight.destinationCode}</strong>
-          <p>{data.focusFlight.durationMinutes} min</p>
+          <p>{formatFlightDuration(data.focusFlight.durationMinutes)} estimated</p>
           <i>04</i>
         </button>
       </section>
@@ -642,7 +650,10 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
   const flight = data.focusFlight
   const origin = findAirport(flight.originCode)
   const destination = findAirport(flight.destinationCode)
-  const totalSeconds = Math.max(5, flight.durationMinutes) * 60
+  const estimatedMinutes = estimateFlightMinutes(origin, destination)
+  const distanceKm = Math.round(routeDistanceKm(origin, destination))
+  const sessionMinutes = flight.status === 'idle' ? estimatedMinutes : flight.durationMinutes
+  const totalSeconds = Math.max(1, sessionMinutes) * 60
   const remainingSeconds = flight.status === 'flying' && flight.endsAt
     ? Math.max(0, (new Date(flight.endsAt).getTime() - now.getTime()) / 1_000)
     : flight.status === 'paused'
@@ -656,13 +667,23 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
     updatedAt: new Date().toISOString(),
   }))
 
+  const updateRoute = (patch: Pick<Partial<AppData['focusFlight']>, 'originCode' | 'destinationCode'>) => {
+    const nextOrigin = findAirport(patch.originCode ?? flight.originCode)
+    const nextDestination = findAirport(patch.destinationCode ?? flight.destinationCode)
+    updateFlight({
+      ...patch,
+      durationMinutes: estimateFlightMinutes(nextOrigin, nextDestination),
+    })
+    setError('')
+  }
+
   const startFlight = () => {
     if (origin.code === destination.code) {
       setError('CHOOSE A DIFFERENT ARRIVAL AIRPORT')
       return
     }
-    const durationMinutes = Math.min(180, Math.max(5, flight.durationMinutes))
-    const startedAt = new Date()
+    const durationMinutes = estimateFlightMinutes(origin, destination)
+    const startedAt = now
     updateFlight({
       durationMinutes,
       status: 'flying',
@@ -676,7 +697,14 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
 
   const pauseFlight = () => updateFlight({ status: 'paused', pausedRemainingSeconds: remainingSeconds, endsAt: undefined })
   const resumeFlight = () => updateFlight({ status: 'flying', endsAt: new Date(Date.now() + remainingSeconds * 1_000).toISOString() })
-  const resetFlight = () => updateFlight({ status: 'idle', startedAt: undefined, endsAt: undefined, pausedRemainingSeconds: undefined, landedAt: undefined })
+  const resetFlight = () => updateFlight({
+    durationMinutes: estimatedMinutes,
+    status: 'idle',
+    startedAt: undefined,
+    endsAt: undefined,
+    pausedRemainingSeconds: undefined,
+    landedAt: undefined,
+  })
 
   return (
     <div className="simple-page flight-page view-enter">
@@ -705,21 +733,21 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
               <h2>focus<br />timer.</h2>
               <div className="flight-airports">
                 <Field label="FROM">
-                  <select value={flight.originCode} onChange={(event) => updateFlight({ originCode: event.target.value })}>
+                  <select value={flight.originCode} onChange={(event) => updateRoute({ originCode: event.target.value })}>
                     {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}</option>)}
                   </select>
                 </Field>
                 <span>→</span>
                 <Field label="TO">
-                  <select value={flight.destinationCode} onChange={(event) => updateFlight({ destinationCode: event.target.value })}>
+                  <select value={flight.destinationCode} onChange={(event) => updateRoute({ destinationCode: event.target.value })}>
                     {AIRPORTS.map((airport) => <option key={airport.code} value={airport.code}>{airport.code} · {airport.city}</option>)}
                   </select>
                 </Field>
               </div>
-              <div className="flight-duration">
-                <span>FOCUS DURATION</span>
-                <div>{[25, 50, 90].map((minutes) => <button key={minutes} className={flight.durationMinutes === minutes ? 'is-active' : ''} onClick={() => updateFlight({ durationMinutes: minutes })}>{minutes}</button>)}</div>
-                <label><input type="number" min="5" max="180" value={flight.durationMinutes} onChange={(event) => updateFlight({ durationMinutes: Number(event.target.value) })} /><small>MIN</small></label>
+              <div className="flight-estimate" aria-live="polite">
+                <span>ESTIMATED FLIGHT TIME</span>
+                <strong>{formatFlightDuration(estimatedMinutes)}</strong>
+                <small>{distanceKm.toLocaleString('en-US')} KM · DIRECT GREAT-CIRCLE ESTIMATE</small>
               </div>
               <Field label="MESSAGE FOR TAKEOFF" wide><textarea rows={3} value={flight.intention} onChange={(event) => updateFlight({ intention: event.target.value })} placeholder="takeoff note" /></Field>
               <Field label="SEALED MESSAGE FOR ARRIVAL" wide><textarea rows={4} value={flight.arrivalMessage} onChange={(event) => updateFlight({ arrivalMessage: event.target.value })} placeholder="arrival note" /></Field>
@@ -746,7 +774,7 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
               <span className="folio">SAFE LANDING / {destination.code}</span>
               <small>THE NOTE YOU LEFT FOR YOURSELF</small>
               <h2>{flight.arrivalMessage || '—'}</h2>
-              <p>{flight.durationMinutes} focused minutes · landed {flight.landedAt ? formatClock(new Date(flight.landedAt)) : 'just now'} in {destination.city}</p>
+              <p>{formatFlightDuration(flight.durationMinutes)} estimated flight · landed {flight.landedAt ? formatClock(new Date(flight.landedAt)) : 'just now'} in {destination.city}</p>
               <PrimaryAction onClick={resetFlight}>NEW FLIGHT</PrimaryAction>
             </div>
           )}
