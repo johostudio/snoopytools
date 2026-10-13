@@ -53,4 +53,4 @@ npm run preview
 
 ## Visual asset
 
-`public/field-at-dusk.jpg` is an original generated image made for this project. It is not copied from the reference site.
+The homepage editorial photograph is stored locally at `public/headphones-field.jpg`; the supplied source is never fetched from a third-party host.

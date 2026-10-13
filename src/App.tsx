@@ -238,7 +238,7 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
   return (
     <div className="index-layout view-enter">
       <section className="index-photo reveal">
-        <img src="/field-at-dusk.jpg" alt="Wildflower field at dusk" />
+        <img src="/headphones-field.jpg" alt="Person listening through headphones in a green field" />
         <div className="definition-block">
           <span>snoopy's home</span>
           <small>/ˈsnuːpiz həʊm/</small>

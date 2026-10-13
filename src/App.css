@@ -398,8 +398,9 @@ button {
   height: 100%;
   display: block;
   object-fit: cover;
-  filter: saturate(.61) contrast(.92) brightness(.85) sepia(.045);
-  transform: scale(1.002);
+  object-position: 50% 50%;
+  filter: saturate(.72) contrast(.9) brightness(.78) sepia(.035);
+  transform: scale(1.018);
   transition: filter 1200ms var(--spring), transform 1600ms var(--spring);
 }
 
@@ -413,7 +414,7 @@ button {
   background:
     url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.58' numOctaves='4' seed='6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.22'/%3E%3C/svg%3E"),
     repeating-linear-gradient(0deg, transparent 0 3px, rgba(240,233,209,.022) 4px, transparent 5px 9px),
-    linear-gradient(125deg, rgba(228,225,193,.08), transparent 45%, rgba(21,28,22,.29));
+    linear-gradient(90deg, rgba(14,31,15,.34), rgba(17,31,18,.08) 48%, rgba(9,16,22,.2));
   background-size: 230px 230px, auto, auto;
   background-blend-mode: soft-light, overlay, normal;
   box-shadow: inset 0 0 110px rgba(9,16,22,.19);
@@ -422,9 +423,9 @@ button {
 .definition-block {
   position: absolute;
   z-index: 2;
-  right: 7%;
-  top: 48%;
-  width: min(320px, 42%);
+  left: 7%;
+  top: 51%;
+  width: min(340px, 43%);
   color: #f4f1e8;
   text-shadow: .35px .35px 0 rgba(255,255,255,.18), 0 1px 4px rgba(0,0,0,.26);
 }
@@ -2195,7 +2196,8 @@ button {
 
   .index-photo,
   .manifesto-paper { min-height: calc(100dvh - 170px); }
-  .definition-block { top: 45%; right: 9%; width: 54%; }
+  .index-photo > img { object-position: 56% 50%; }
+  .definition-block { top: 48%; left: 8%; width: 55%; }
   .definition-block > span { font-size: 26px; }
   .definition-block p { font-size: 13px; }
   .manifesto-copy { width: 68%; transform: translate(-43%, -50%); }
