@@ -6,7 +6,7 @@ Snoopy's Home is offline-first. Every edit is written to the current device imme
 
 | Data | Offline copy | Cloud copy after sign-in |
 | --- | --- | --- |
-| birthdays, concerts, notes, lists, trackers, point-in-time, golden-hour settings, theme, current flight, and flight history | browser `localStorage` | one private `appStates` document in Convex |
+| birthdays, concerts, notes, lists, trackers, point-in-time, golden-hour settings, theme, current flight, flight history, Last.fm cache, and music picks | browser `localStorage` | one private `appStates` document in Convex |
 | birthday and concert photos | IndexedDB database `snoopytools-media` | Convex Storage plus private `photos` metadata |
 | app shell, fonts, map code, and static imagery | service-worker cache | Vercel deployment/CDN |
 
@@ -24,6 +24,19 @@ npx convex dev
 Log into the same Convex account and select the existing project. The command creates a private `.env.local` with `VITE_CONVEX_URL` and starts a development watcher. The public deployment URLs may be copied to Vercel; the deployment selector and any deploy keys must remain private.
 
 Open the app's sync panel, create an account with an email and a password of at least eight characters, and use the same credentials on each device. Password reset email is not enabled yet, so save the password in a password manager.
+
+The web/PWA auth provider stores a renewable Convex session in that device's `localStorage`. After the first sign-in, closing the PWA, refreshing it, or installing a newer service worker does not require another password. The session is removed only when **sign out** is selected, site storage is cleared, or the refresh session is revoked.
+
+## Last.fm connection
+
+The listening browser uses Last.fm's public read-only methods through a Convex action. Create an API account at `https://www.last.fm/api/account/create`, then set only the API key in Convex. The API secret is not used by this app.
+
+```powershell
+npx convex env set LASTFM_API_KEY
+npx convex env set --prod LASTFM_API_KEY
+```
+
+Each command prompts for the value without adding it to Git or a shell command. The username is entered inside the app and syncs with the archive. Stats refresh only when requested; the most recent weekly, monthly, and 12-month results remain cached for offline browsing and top-three selection.
 
 ## Offline and conflict behavior
 

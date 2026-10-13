@@ -17,7 +17,7 @@ const convex = new ConvexReactClient(convexUrl)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConvexAuthProvider client={convex}>
+    <ConvexAuthProvider client={convex} storage={window.localStorage}>
       <App />
     </ConvexAuthProvider>
   </StrictMode>,

@@ -1,7 +1,9 @@
 import { estimateFlightMinutes, findAirport } from './data/airports'
 
-export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers'
+export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers' | 'lastfm' | 'music-picks'
 export type AppTheme = 'moss' | 'blue' | 'plum' | 'amber'
+export type ListeningPeriod = 'week' | 'month' | 'year'
+export type ListeningCategory = 'artists' | 'albums' | 'tracks'
 
 export interface UserProfile {
   displayName: string
@@ -100,8 +102,52 @@ export interface FlightHistoryEntry {
   outcome: 'landed' | 'ended'
 }
 
+export interface LastFmEntry {
+  id: string
+  name: string
+  artist?: string
+  playcount: number
+  url: string
+  image?: string
+  date?: string
+  nowPlaying?: boolean
+}
+
+export interface LastFmSnapshot {
+  period: ListeningPeriod
+  fetchedAt: string
+  user: {
+    name: string
+    realName?: string
+    url: string
+    image?: string
+    playcount: number
+    registeredAt?: string
+  }
+  recent: LastFmEntry[]
+  artists: LastFmEntry[]
+  albums: LastFmEntry[]
+  tracks: LastFmEntry[]
+}
+
+export type LastFmPeriodPicks = Record<ListeningCategory, LastFmEntry[]>
+
+export interface LastFmState {
+  username: string
+  snapshots: Partial<Record<ListeningPeriod, LastFmSnapshot>>
+  picks: Record<ListeningPeriod, LastFmPeriodPicks>
+}
+
+function createEmptyPicks(): Record<ListeningPeriod, LastFmPeriodPicks> {
+  return {
+    week: { artists: [], albums: [], tracks: [] },
+    month: { artists: [], albums: [], tracks: [] },
+    year: { artists: [], albums: [], tracks: [] },
+  }
+}
+
 export interface AppData {
-  version: 7
+  version: 8
   routines: Routine[]
   moment: {
     label: string
@@ -114,6 +160,7 @@ export interface AppData {
   solar: SolarSettings
   focusFlight: FocusFlight
   flightHistory: FlightHistoryEntry[]
+  lastFm: LastFmState
   preferences: {
     theme: AppTheme
     profile: UserProfile
@@ -128,7 +175,7 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 7,
+    version: 8,
     routines: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
@@ -149,6 +196,11 @@ export function createInitialState(): AppData {
       status: 'idle',
     },
     flightHistory: [],
+    lastFm: {
+      username: '',
+      snapshots: {},
+      picks: createEmptyPicks(),
+    },
     preferences: {
       theme: 'moss',
       profile: { ...DEFAULT_PROFILE },
@@ -174,6 +226,21 @@ export function migrateAppData(input: unknown): AppData {
   const moment = candidate.moment && typeof candidate.moment === 'object' ? { ...defaults.moment, ...candidate.moment } : defaults.moment
   const focusFlight = candidate.focusFlight && typeof candidate.focusFlight === 'object' ? { ...defaults.focusFlight, ...candidate.focusFlight } : defaults.focusFlight
   const flightHistory = Array.isArray(candidate.flightHistory) ? candidate.flightHistory : defaults.flightHistory
+  const candidateLastFm = candidate.lastFm && typeof candidate.lastFm === 'object' ? candidate.lastFm : undefined
+  const lastFm: LastFmState = candidateLastFm
+    ? {
+        ...defaults.lastFm,
+        ...candidateLastFm,
+        snapshots: candidateLastFm.snapshots && typeof candidateLastFm.snapshots === 'object'
+          ? candidateLastFm.snapshots
+          : defaults.lastFm.snapshots,
+        picks: {
+          week: { ...defaults.lastFm.picks.week, ...candidateLastFm.picks?.week },
+          month: { ...defaults.lastFm.picks.month, ...candidateLastFm.picks?.month },
+          year: { ...defaults.lastFm.picks.year, ...candidateLastFm.picks?.year },
+        },
+      }
+    : defaults.lastFm
   const candidatePreferences = candidate.preferences && typeof candidate.preferences === 'object'
     ? candidate.preferences
     : undefined
@@ -198,7 +265,7 @@ export function migrateAppData(input: unknown): AppData {
   return {
     ...defaults,
     ...candidate,
-    version: 7,
+    version: 8,
     routines,
     notes,
     trackers,
@@ -208,6 +275,7 @@ export function migrateAppData(input: unknown): AppData {
     solar: candidate.solar && typeof candidate.solar === 'object' ? { ...defaults.solar, ...candidate.solar } : defaults.solar,
     focusFlight,
     flightHistory,
+    lastFm,
     preferences,
   }
 }

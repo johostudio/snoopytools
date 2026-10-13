@@ -43,6 +43,18 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: /^https:\/\/(lastfm\.freetls\.fastly\.net|lastfm-img2\.akamaized\.net)\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'snoopy-lastfm-artwork',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 250,
+                maxAgeSeconds: 60 * 60 * 24 * 90,
+              },
+            },
+          },
         ],
       },
     }),

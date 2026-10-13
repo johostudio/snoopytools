@@ -13,6 +13,7 @@ import {
 import * as SunCalc from 'suncalc'
 import './App.css'
 import { FlightMap } from './components/FlightMap'
+import { LastFmBrowserView, LastFmPicksView } from './components/LastFmViews'
 import { AIRPORTS, estimateFlightMinutes, findAirport, routeDistanceKm } from './data/airports'
 import {
   createInitialState,
@@ -42,6 +43,8 @@ const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'moment', label: 'time', number: '06' },
   { id: 'notes', label: 'notes', number: '07' },
   { id: 'trackers', label: 'trackers', number: '08' },
+  { id: 'lastfm', label: 'last.fm', number: '09' },
+  { id: 'music-picks', label: 'top three', number: '10' },
 ]
 
 const THEMES: { id: AppTheme; label: string }[] = [
@@ -292,7 +295,7 @@ function OptionalCalendarAction({
 }
 
 function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; onClose: () => void }) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => window.localStorage.getItem('snoopytools:last-email') ?? '')
   const [password, setPassword] = useState('')
   const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
   const [busy, setBusy] = useState(false)
@@ -306,6 +309,7 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
     setBusy(true)
     try {
       await sync.signInWithPassword(email, password, flow)
+      window.localStorage.setItem('snoopytools:last-email', email.trim().toLowerCase())
     } catch {
       // The sync message displays the private authentication error.
     } finally {
@@ -331,7 +335,6 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
     <aside className="sync-panel paper-texture" aria-label="sync settings">
       <button type="button" className="sync-panel__close" onClick={onClose} aria-label="close profile and sync settings">×</button>
       <span className="folio">profile + personal cloud / 同期</span>
-      <h2>everywhere,<br />even offline.</h2>
 
       <section className="profile-editor" aria-labelledby="profile-editor-title">
         <div className="profile-editor__identity">
@@ -347,8 +350,8 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
         </div>
       </section>
 
-      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.status}</strong></div>
-      <p>{sync.message}</p>
+      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'signed in until you choose sign out' : 'sign in once; this device will remember you'}</span></div>
+      {(sync.status === 'error' || sync.status === 'offline') && <p className="sync-state-message">{sync.message}</p>}
 
       {!sync.configured && (
         <div className="sync-setup-note">
@@ -373,7 +376,7 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
             </div>
             <button className="sync-email__submit" disabled={busy}>{busy ? 'working…' : flow === 'signIn' ? 'sign in' : 'create account'}</button>
           </form>
-          <p className="sync-apple-note">apple sign-in can be connected when the ios developer credentials are ready.</p>
+          <p className="sync-apple-note">your password is never stored here. convex keeps a renewable session on this device after the first sign-in.</p>
         </>
       )}
 
@@ -385,7 +388,7 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
         </div>
       )}
 
-      <small>notes and records stay in local storage. photos stay in indexeddb. while signed in, both are mirrored to your private convex cloud and restored on another device.</small>
+      <small>your offline copy stays in local storage and indexeddb. while signed in, the same archive is mirrored to your private convex cloud.</small>
     </aside>
   )
 }
@@ -411,30 +414,30 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
       <section className="manifesto-paper paper-texture reveal">
         <span className="vertical-copy">PERSONAL ARCHIVE / VANCOUVER, BC</span>
         <div className="manifesto-copy index-stats">
-          <article>
+          <button type="button" className="index-stat" onClick={() => onNavigate('birthdays')}>
             <div><mark>{pad(data.birthdays.length)}</mark><b>birthdays</b></div>
             <em>noun</em>
             <p>dates, reminders, notes, cards.</p>
             <small lang="zh-Hans">生日；日期、提醒、备注与贺卡。</small>
-          </article>
-          <article>
+          </button>
+          <button type="button" className="index-stat" onClick={() => onNavigate('concerts')}>
             <div><mark>{pad(data.concerts.length)}</mark><b>concerts</b></div>
             <em>noun</em>
             <p>venue, lineup, company, photos.</p>
             <small lang="zh-Hans">演唱会；场地、阵容、同行者与照片。</small>
-          </article>
-          <article>
+          </button>
+          <button type="button" className="index-stat" onClick={() => onNavigate('notes')}>
             <div><mark>{pad(data.notes.length)}</mark><b>notes</b></div>
             <em>noun</em>
             <p>plain text saved on this device.</p>
             <small lang="zh-Hans">笔记；保存在本机的文字。</small>
-          </article>
-          <article>
+          </button>
+          <button type="button" className="index-stat" onClick={() => onNavigate('routines')}>
             <div><mark>{pad(data.routines.length)}</mark><b>lists</b></div>
             <em>noun</em>
             <p>steps that complete and reset.</p>
             <small lang="zh-Hans">清单；可完成并重置的步骤。</small>
-          </article>
+          </button>
           <strong>local / this device</strong>
         </div>
         <span className="archive-number">001</span>
@@ -1206,7 +1209,7 @@ function App() {
           <div className="theme-switcher" aria-label="colour theme">
             {THEMES.map((theme) => <button key={theme.id} className={data.preferences.theme === theme.id ? 'is-active' : ''} onClick={() => changeTheme(theme.id)} aria-label={`${theme.label} theme`} title={`${theme.label} theme`}><i /></button>)}
           </div>
-          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open profile and sync settings"><i /> {sync.status === 'sign-in' ? 'profile' : sync.status} <span>{activeIndex}/08</span></button>
+          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open profile and sync settings"><i /> {sync.status === 'sign-in' ? 'profile' : sync.status} <span>{activeIndex}/10</span></button>
         </div>
       </header>
 
@@ -1228,6 +1231,8 @@ function App() {
         {activeView === 'moment' && <MomentView data={data} setData={setData} now={now} />}
         {activeView === 'notes' && <NotesView data={data} setData={setData} />}
         {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}
+        {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} />}
+        {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Mobile tools">
