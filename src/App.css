@@ -419,16 +419,18 @@ button {
   font-size: 10px;
   font-weight: 720;
 }
-.sync-email .sync-email__submit:disabled { opacity: .56; }
-.sync-mode {
-  margin-top: 10px;
-  padding: 0 0 2px;
-  border: 0;
-  border-bottom: 1px solid rgba(21,27,24,.34);
-  color: var(--ink);
-  background: transparent;
-  font-size: 8px;
-}
+  .sync-email .sync-email__submit:disabled { opacity: .56; }
+  .sync-auth-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 18px; }
+  .sync-auth-mode button {
+    padding: 8px 6px;
+    border: 1px solid rgba(21,27,24,.25);
+    color: var(--ink);
+    background: transparent;
+    font-size: 8px;
+    letter-spacing: .04em;
+  }
+  .sync-auth-mode button.is-active { color: var(--cream); background: var(--night); }
+  .sync-auth-mode + .sync-email { margin-top: 11px; }
 .sync-apple-note { margin-top: 14px !important; font-size: 8px !important; opacity: .46 !important; }
 .sync-panel > small { display: block; margin-top: 24px; font-size: 8px; line-height: 1.45; opacity: .46; }
 

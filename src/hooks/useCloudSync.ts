@@ -33,6 +33,17 @@ function errorMessage(error: unknown, fallback: string) {
   return message || fallback
 }
 
+function authErrorMessage(error: unknown, flow: AuthFlow) {
+  const fallback = flow === 'signUp'
+    ? 'account could not be created. check the email and try again.'
+    : 'email or password did not match. first time here? choose create account.'
+  const message = errorMessage(error, fallback)
+  if (/server error called by client|invalidaccountid|invalidsecret|invalid credentials/i.test(message)) {
+    return fallback
+  }
+  return message
+}
+
 export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<AppData>>) {
   const configured = Boolean(import.meta.env.VITE_CONVEX_URL?.trim())
   const convex = useConvex()
@@ -127,7 +138,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       initializedUserRef.current = null
       uploadedIdsRef.current.clear()
       setStatus('sign-in')
-      setMessage('sign in once to keep every device together')
+      setMessage('create an account once, then use the same login on each device')
       return
     }
     if (!userId || cloudState === undefined) {
@@ -262,9 +273,16 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       await signIn('password', form)
     } catch (error) {
       setStatus('error')
-      setMessage(errorMessage(error, flow === 'signUp' ? 'account could not be created' : 'sign in failed'))
+      setMessage(authErrorMessage(error, flow))
       throw error
     }
+  }
+
+  const prepareAuth = (flow: AuthFlow) => {
+    setStatus('sign-in')
+    setMessage(flow === 'signUp'
+      ? 'create this account once, then use it on every device'
+      : 'use the account you already created')
   }
 
   const signOut = async () => {
@@ -282,6 +300,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     email: currentUser?.email ?? undefined,
     authenticated: isAuthenticated,
     signInWithPassword,
+    prepareAuth,
     signOut,
   }
 }

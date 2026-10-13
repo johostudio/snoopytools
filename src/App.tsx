@@ -268,6 +268,10 @@ function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; o
   const [password, setPassword] = useState('')
   const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
   const [busy, setBusy] = useState(false)
+  const selectFlow = (nextFlow: 'signIn' | 'signUp') => {
+    setFlow(nextFlow)
+    sync.prepareAuth(nextFlow)
+  }
   const submitAccount = async (event: FormEvent) => {
     event.preventDefault()
     if (!email.trim() || password.length < 8) return
@@ -298,6 +302,10 @@ function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; o
 
       {sync.configured && !sync.authenticated && (
         <>
+          <div className="sync-auth-mode" role="group" aria-label="account action">
+            <button type="button" className={flow === 'signIn' ? 'is-active' : ''} aria-pressed={flow === 'signIn'} onClick={() => selectFlow('signIn')}>sign in</button>
+            <button type="button" className={flow === 'signUp' ? 'is-active' : ''} aria-pressed={flow === 'signUp'} onClick={() => selectFlow('signUp')}>create account</button>
+          </div>
           <form className="sync-email" onSubmit={submitAccount}>
             <label htmlFor="sync-email">private account</label>
             <div className="sync-email__field">
@@ -308,9 +316,6 @@ function SyncPanel({ sync, onClose }: { sync: ReturnType<typeof useCloudSync>; o
             </div>
             <button className="sync-email__submit" disabled={busy}>{busy ? 'working…' : flow === 'signIn' ? 'sign in' : 'create account'}</button>
           </form>
-          <button className="sync-mode" type="button" onClick={() => setFlow((current) => current === 'signIn' ? 'signUp' : 'signIn')}>
-            {flow === 'signIn' ? 'new here? create an account' : 'already have one? sign in'}
-          </button>
           <p className="sync-apple-note">apple sign-in can be connected when the ios developer credentials are ready.</p>
         </>
       )}
