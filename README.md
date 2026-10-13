@@ -1,6 +1,6 @@
 # Snoopy's Home
 
-A local-first personal archive for birthdays, concerts, golden hour, focus flights, repeatable lists, one meaningful point in time, plain notes, and deliberately specific trackers. The interface uses scanned-paper texture, tight editorial typography, asymmetric collage, and muted archive colours inspired by the supplied references.
+A local-first app for birthdays, concerts, golden hour, focus flights, repeatable lists, countdowns, notes, and configurable trackers. The interface uses scanned-paper texture, tight lowercase typography, asymmetric collage, and muted archive colours inspired by the supplied references.
 
 ## Run it
 
@@ -20,6 +20,7 @@ Then open the local URL Vite prints. The app is responsive and installable as a 
 - Apple Calendar concert exports with the full event context and an alert
 - A location-aware golden-hour desk with sunrise, morning gold, evening gold, sunset, and a live countdown
 - Airport-to-airport focus flights with a duration-controlled countdown, moving route map, pause/resume, a takeoff intention, and a sealed arrival note
+- Live YVR and KHN local clocks in the desktop side rail
 - Ordered repeatable lists with completion, reset, add, and remove actions
 - One live point-in-time counter that automatically switches between “until” and “since”
 - Plain notes with local autosave
@@ -27,6 +28,7 @@ Then open the local URL Vite prints. The app is responsive and installable as a 
 - Offline caching and installable PWA metadata
 - Local persistence plus live state propagation across browser tabs
 - Responsive iPhone and desktop layouts
+- An empty first-run state with no sample people, events, messages, notes, lists, or tracker data
 
 Structured data is intentionally local-only in this first boilerplate, with photos stored as blobs in IndexedDB. Changes propagate between tabs on the same browser, but iPhone-to-desktop cloud sync is not simulated. The next product phase adds accounts, object storage, and an offline mutation queue.
 

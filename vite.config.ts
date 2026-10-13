@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: "Snoopy's Home",
         short_name: 'Snoopy Home',
-        description: "A personal archive for the little things worth keeping.",
+        description: 'Local personal tools.',
         theme_color: '#171717',
         background_color: '#171717',
         display: 'standalone',

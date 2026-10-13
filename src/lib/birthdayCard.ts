@@ -107,15 +107,17 @@ export async function renderBirthdayCard(birthday: Birthday, message: string, st
   context.globalAlpha = 1
 
   context.fillStyle = palette.ink
+  context.shadowColor = palette.ink
+  context.shadowBlur = .6
   context.font = '600 24px Manrope'
-  context.letterSpacing = '4px'
-  context.fillText('BIRTHDAY ARCHIVE  /  誕生日', 72, 90)
+  context.letterSpacing = '1px'
+  context.fillText('birthday archive  /  誕生日', 72, 90)
   context.font = '500 17px Manrope'
-  context.fillText("SNOOPY'S HOME · PERSONAL EDITION", 72, 1260)
+  context.fillText("snoopy's home · card 001", 72, 1260)
 
   context.font = '700 116px Manrope'
-  context.letterSpacing = '-6px'
-  const nameLines = wrapText(context, birthday.name.toUpperCase(), 920, 2)
+  context.letterSpacing = '-8px'
+  const nameLines = wrapText(context, birthday.name.toLowerCase(), 920, 2)
   nameLines.forEach((line, index) => context.fillText(line, 70, 790 + index * 108))
 
   context.fillStyle = palette.accent
@@ -123,15 +125,15 @@ export async function renderBirthdayCard(birthday: Birthday, message: string, st
   context.fillStyle = palette.ink
   context.font = '600 29px Manrope'
   context.letterSpacing = '-1px'
-  const messageLines = wrapText(context, message || `Happy birthday, ${birthday.name}.`, 820, 4)
+  const messageLines = wrapText(context, message, 820, 4)
   messageLines.forEach((line, index) => context.fillText(line, 76, 930 + (nameLines.length - 1) * 108 + index * 42))
 
   context.save()
   context.translate(1038, 1150)
   context.rotate(-Math.PI / 2)
   context.font = '600 18px Manrope'
-  context.letterSpacing = '3px'
-  context.fillText('MADE WITH CARE · 愛を込めて', 0, 0)
+  context.letterSpacing = '1px'
+  context.fillText('snoopy\'s home · card', 0, 0)
   context.restore()
 
   context.globalCompositeOperation = 'soft-light'
@@ -149,5 +151,6 @@ export async function renderBirthdayCard(birthday: Birthday, message: string, st
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => result ? resolve(result) : reject(new Error('Card could not be rendered')), 'image/png')
   })
-  return new File([blob], `${birthday.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-birthday-card.png`, { type: 'image/png' })
+  const safeName = birthday.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'birthday'
+  return new File([blob], `${safeName}-card.png`, { type: 'image/png' })
 }

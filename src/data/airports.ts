@@ -29,6 +29,7 @@ export const AIRPORTS: Airport[] = [
   { code: 'LIS', city: 'Lisbon', name: 'Humberto Delgado', country: 'Portugal', latitude: 38.7756, longitude: -9.1354 },
   { code: 'BCN', city: 'Barcelona', name: 'Barcelona–El Prat', country: 'Spain', latitude: 41.2974, longitude: 2.0833 },
   { code: 'FCO', city: 'Rome', name: 'Leonardo da Vinci–Fiumicino', country: 'Italy', latitude: 41.8003, longitude: 12.2389 },
+  { code: 'KHN', city: 'Nanchang', name: 'Nanchang Changbei International', country: 'China', latitude: 28.8648, longitude: 115.9027 },
   { code: 'HND', city: 'Tokyo', name: 'Tokyo Haneda', country: 'Japan', latitude: 35.5494, longitude: 139.7798 },
   { code: 'NRT', city: 'Tokyo', name: 'Narita International', country: 'Japan', latitude: 35.772, longitude: 140.3929 },
   { code: 'ICN', city: 'Seoul', name: 'Incheon International', country: 'South Korea', latitude: 37.4602, longitude: 126.4407 },

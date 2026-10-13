@@ -56,6 +56,33 @@ function formatTimer(totalSeconds: number) {
   return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
 }
 
+const AIRPORT_CLOCKS = [
+  { code: 'YVR', city: 'Vancouver', timeZone: 'America/Vancouver' },
+  { code: 'KHN', city: 'Nanchang', timeZone: 'Asia/Shanghai' },
+]
+
+function AirportClocks({ now }: { now: Date }) {
+  return (
+    <div className="rail-clocks" aria-label="Airport clocks">
+      {AIRPORT_CLOCKS.map((clock) => (
+        <div className="rail-clock" key={clock.code}>
+          <span className="airport-code">{clock.code}</span>
+          <time dateTime={now.toISOString()}>
+            {new Intl.DateTimeFormat('en-GB', {
+              timeZone: clock.timeZone,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }).format(now)}
+          </time>
+          <small>{clock.city}</small>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function formatBirthday(date: string) {
   const [, month, day] = date.split('-').map(Number)
   return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date(2024, month - 1, day))
@@ -199,23 +226,19 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         <img src="/field-at-dusk.jpg" alt="Wildflower field at dusk" />
         <div className="definition-block">
           <span>snoopy's home</span>
-          <small>/ personal archive /</small>
-          <em>noun</em>
-          <p><mark>1. a quiet place for details worth remembering.</mark></p>
+          <small>/ index /</small>
         </div>
         <b>© SNOOPY'S HOME 2026</b>
       </section>
 
       <section className="manifesto-paper paper-texture reveal">
         <span className="vertical-copy">PERSONAL ARCHIVE / VANCOUVER, BC</span>
-        <div className="manifesto-copy">
-          <p>the little details are usually the whole thing.</p>
-          <small>小さなことが、すべてです。</small>
-          <p>birthdays, rooms, opening songs, people beside you.</p>
-          <small>誕生日、会場、最初の曲、隣にいた人。</small>
-          <p><mark>keep them somewhere that feels like yours.</mark></p>
-          <small>自分だけの場所に残しておく。</small>
-          <strong>— snoopy's home <i>(personal edition)</i></strong>
+        <div className="manifesto-copy index-stats">
+          <p><mark>{pad(data.birthdays.length)}</mark> birthdays</p>
+          <p><mark>{pad(data.concerts.length)}</mark> concerts</p>
+          <p><mark>{pad(data.notes.length)}</mark> notes</p>
+          <p><mark>{pad(data.routines.length)}</mark> lists</p>
+          <strong>local / this device</strong>
         </div>
         <span className="archive-number">001</span>
       </section>
@@ -223,26 +246,26 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
       <section className="index-cards reveal">
         <button className="archive-teaser birthday-teaser" onClick={() => onNavigate('birthdays')}>
           <span>UP NEXT / 誕生日</span>
-          <strong>{nextBirthday?.name ?? 'Add a birthday'}</strong>
-          <p>{nextBirthday ? `${formatBirthday(nextBirthday.date)} · ${birthdayDistance(nextBirthday.date)} days` : 'Keep the important dates close.'}</p>
+          <strong>{nextBirthday?.name || 'no birthdays'}</strong>
+          <p>{nextBirthday ? `${formatBirthday(nextBirthday.date)} · ${birthdayDistance(nextBirthday.date)} days` : '0 saved'}</p>
           <i>01</i>
         </button>
         <button className="archive-teaser concert-teaser" onClick={() => onNavigate('concerts')}>
           <span>CONCERT ARCHIVE / 音楽</span>
-          <strong>{nextConcert?.artist ?? 'Add a concert'}</strong>
-          <p>{nextConcert ? `${nextConcert.venue} · ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(nextConcert.dateTime))}` : 'Remember the room and who was there.'}</p>
+          <strong>{nextConcert?.artist || 'no concerts'}</strong>
+          <p>{nextConcert ? `${nextConcert.venue || 'no venue'} · ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(nextConcert.dateTime))}` : '0 saved'}</p>
           <i>02</i>
         </button>
         <button className="archive-teaser solar-teaser" onClick={() => onNavigate('sunset')}>
           <span>GOLDEN HOUR / 日没</span>
-          <strong>Follow the light</strong>
-          <p>{data.solar.locationName} · live sunrise and sunset</p>
+          <strong>golden hour</strong>
+          <p>{data.solar.locationName}</p>
           <i>03</i>
         </button>
         <button className="archive-teaser flight-teaser" onClick={() => onNavigate('flight')}>
           <span>FOCUS FLIGHT / 集中</span>
           <strong>{data.focusFlight.originCode} → {data.focusFlight.destinationCode}</strong>
-          <p>{data.focusFlight.durationMinutes} minute study journey · arrival note sealed</p>
+          <p>{data.focusFlight.durationMinutes} min</p>
           <i>04</i>
         </button>
       </section>
@@ -251,7 +274,7 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
 }
 
 function BirthdayCardStudio({ birthday, onClose }: { birthday: Birthday; onClose: () => void }) {
-  const [message, setMessage] = useState(`Happy birthday, ${birthday.name}. I hope this year feels gentle and completely yours.`)
+  const [message, setMessage] = useState('')
   const [style, setStyle] = useState<CardStyle>('sage')
   const [status, setStatus] = useState('')
   const photoUrl = usePhotoUrl(birthday.photoId)
@@ -285,12 +308,12 @@ function BirthdayCardStudio({ birthday, onClose }: { birthday: Birthday; onClose
             <h2>{birthday.name}</h2>
             <mark>{message}</mark>
           </div>
-          <small>SNOOPY'S HOME · MADE WITH CARE</small>
+          <small>SNOOPY'S HOME · CARD 001</small>
           <b>愛を込めて</b>
         </div>
         <div className="card-controls paper-texture">
           <span className="folio">PERSONAL EDITION 001</span>
-          <h2>Make it feel<br />like a keepsake.</h2>
+          <h2>birthday<br />card.</h2>
           <Field label="MESSAGE" wide>
             <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={6} />
           </Field>
@@ -327,8 +350,8 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
   const addBirthday = () => {
     const birthday: Birthday = {
       id: crypto.randomUUID(),
-      name: 'New person',
-      date: '2000-01-01',
+      name: '',
+      date: new Date().toISOString().slice(0, 10),
       reminderDays: 7,
       notes: '',
       giftIdeas: '',
@@ -355,11 +378,11 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
             .map((birthday, index) => (
               <button key={birthday.id} className={birthday.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(birthday.id); setCardMode(false) }}>
                 <span>{pad(index + 1)}</span>
-                <div><strong>{birthday.name}</strong><small>{formatBirthday(birthday.date)}</small></div>
+                <div><strong>{birthday.name || 'untitled'}</strong><small>{formatBirthday(birthday.date)}</small></div>
                 <em>{birthdayDistance(birthday.date)}d</em>
               </button>
             ))}
-          <p className="margin-note">every year, without making memory do all the work.</p>
+          <p className="margin-note">yearly calendar reminder</p>
         </aside>
 
         {selected && (
@@ -376,7 +399,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
             <div className="editor-fields">
               <span className="folio">PERSONAL FILE / {selected.id.slice(-4).toUpperCase()}</span>
               <div className="field-grid">
-                <Field label="NAME"><input value={selected.name} onChange={(event) => update({ name: event.target.value })} /></Field>
+                <Field label="NAME"><input value={selected.name} onChange={(event) => update({ name: event.target.value })} placeholder="name" /></Field>
                 <Field label="BIRTHDAY"><input type="date" value={selected.date} onChange={(event) => update({ date: event.target.value })} /></Field>
                 <Field label="APPLE CALENDAR REMINDER">
                   <select value={selected.reminderDays} onChange={(event) => update({ reminderDays: Number(event.target.value) })}>
@@ -388,7 +411,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
                     <option value={30}>1 month before</option>
                   </select>
                 </Field>
-                <Field label="IMPORTANT NOTES" wide><textarea rows={5} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} placeholder="Favourite places, sizes, things they care about…" /></Field>
+                <Field label="IMPORTANT NOTES" wide><textarea rows={5} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
                 <Field label="GIFT + PLAN IDEAS" wide><textarea rows={3} value={selected.giftIdeas} onChange={(event) => update({ giftIdeas: event.target.value })} /></Field>
               </div>
               <div className="editor-actions">
@@ -399,6 +422,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
             </div>
           </section>
         )}
+        {!selected && <section className="empty-tool paper-texture"><span>0 birthdays</span><button onClick={addBirthday}>+ add person</button></section>}
       </div>
     </div>
   )
@@ -422,7 +446,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
     now.setHours(20, 0, 0, 0)
     const concert: Concert = {
       id: crypto.randomUUID(),
-      artist: 'New concert',
+      artist: '',
       dateTime: dateTimeInputValue(now.toISOString()),
       venue: '', city: '', companions: '', supportingArtists: '', notes: '', photoIds: [],
     }
@@ -442,7 +466,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
           {data.concerts.map((concert, index) => (
             <button key={concert.id} className={concert.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(concert.id)}>
               <em>{pad(index + 1)}</em>
-              <div><strong>{concert.artist}</strong><small>{concert.venue || 'Venue tba'}</small></div>
+              <div><strong>{concert.artist || 'untitled'}</strong><small>{concert.venue || 'no venue'}</small></div>
               <time>{new Intl.DateTimeFormat('en-US', { month: '2-digit', year: '2-digit' }).format(new Date(concert.dateTime))}</time>
             </button>
           ))}
@@ -454,7 +478,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
               {selected.photoIds.length ? (
                 selected.photoIds.slice(0, 4).map((photoId, index) => <StoredImage key={photoId} photoId={photoId} alt={`${selected.artist} memory ${index + 1}`} className={`collage-photo collage-photo--${index + 1}`} />)
               ) : (
-                <div className="empty-collage"><span>CONCERT<br />MEMORY</span><small>写真を追加</small></div>
+                <div className="empty-collage"><span>CONCERT<br />PHOTO</span><small>写真を追加</small></div>
               )}
               <span className="tape tape--one" /><span className="tape tape--two" />
               <b className="concert-page">page 778</b>
@@ -462,13 +486,13 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
 
             <div className="concert-editor">
               <span className="folio">LIVE ARCHIVE / {selected.id.slice(-4).toUpperCase()}</span>
-              <h2>{selected.artist}</h2>
+              <h2>{selected.artist || 'untitled'}</h2>
               <div className="field-grid">
-                <Field label="HEADLINER"><input value={selected.artist} onChange={(event) => update({ artist: event.target.value })} /></Field>
+                <Field label="HEADLINER"><input value={selected.artist} onChange={(event) => update({ artist: event.target.value })} placeholder="artist" /></Field>
                 <Field label="DATE + TIME"><input type="datetime-local" value={selected.dateTime} onChange={(event) => update({ dateTime: event.target.value })} /></Field>
                 <Field label="VENUE"><input value={selected.venue} onChange={(event) => update({ venue: event.target.value })} /></Field>
                 <Field label="CITY"><input value={selected.city} onChange={(event) => update({ city: event.target.value })} /></Field>
-                <Field label="WHO I WENT WITH" wide><input value={selected.companions} onChange={(event) => update({ companions: event.target.value })} placeholder="Names, separated by commas" /></Field>
+                <Field label="WHO I WENT WITH" wide><input value={selected.companions} onChange={(event) => update({ companions: event.target.value })} /></Field>
                 <Field label="OPENERS + SIDE ARTISTS" wide><input value={selected.supportingArtists} onChange={(event) => update({ supportingArtists: event.target.value })} /></Field>
                 <Field label="WHAT I WANT TO REMEMBER" wide><textarea rows={4} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
               </div>
@@ -477,6 +501,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
             </div>
           </section>
         )}
+        {!selected && <section className="empty-tool paper-texture"><span>0 concerts</span><button onClick={addConcert}>+ add concert</button></section>}
       </div>
     </div>
   )
@@ -521,7 +546,7 @@ function GoldenHourView({ data, setData, now }: { data: AppData; setData: DataSe
       setLocationStatus('LOCATION IS NOT AVAILABLE IN THIS BROWSER')
       return
     }
-    setLocationStatus('FINDING YOUR LIGHT…')
+    setLocationStatus('LOCATING…')
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         updateSolar({
@@ -647,7 +672,7 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
           {flight.status === 'idle' && (
             <>
               <span className="folio">BOARDING PASS / FF 104</span>
-              <h2>Book a block<br />of attention.</h2>
+              <h2>focus<br />timer.</h2>
               <div className="flight-airports">
                 <Field label="FROM">
                   <select value={flight.originCode} onChange={(event) => updateFlight({ originCode: event.target.value })}>
@@ -666,9 +691,9 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
                 <div>{[25, 50, 90].map((minutes) => <button key={minutes} className={flight.durationMinutes === minutes ? 'is-active' : ''} onClick={() => updateFlight({ durationMinutes: minutes })}>{minutes}</button>)}</div>
                 <label><input type="number" min="5" max="180" value={flight.durationMinutes} onChange={(event) => updateFlight({ durationMinutes: Number(event.target.value) })} /><small>MIN</small></label>
               </div>
-              <Field label="MESSAGE FOR TAKEOFF" wide><textarea rows={3} value={flight.intention} onChange={(event) => updateFlight({ intention: event.target.value })} placeholder="What are you here to finish?" /></Field>
-              <Field label="SEALED MESSAGE FOR ARRIVAL" wide><textarea rows={4} value={flight.arrivalMessage} onChange={(event) => updateFlight({ arrivalMessage: event.target.value })} placeholder="Write something your future self can only read after landing." /></Field>
-              <PrimaryAction onClick={startFlight}>TEAR TICKET + TAKE OFF</PrimaryAction>
+              <Field label="MESSAGE FOR TAKEOFF" wide><textarea rows={3} value={flight.intention} onChange={(event) => updateFlight({ intention: event.target.value })} placeholder="takeoff note" /></Field>
+              <Field label="SEALED MESSAGE FOR ARRIVAL" wide><textarea rows={4} value={flight.arrivalMessage} onChange={(event) => updateFlight({ arrivalMessage: event.target.value })} placeholder="arrival note" /></Field>
+              <PrimaryAction onClick={startFlight}>START FLIGHT</PrimaryAction>
               {error && <output className="action-status">{error}</output>}
             </>
           )}
@@ -677,7 +702,7 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
             <div className="in-flight-panel">
               <span className="folio">IN FLIGHT / SEAT 04A</span>
               <h2>{origin.code} → {destination.code}</h2>
-              <div className="takeoff-message"><small>YOUR TAKEOFF MESSAGE</small><p>{flight.intention || 'Stay with the work in front of you.'}</p></div>
+              <div className="takeoff-message"><small>YOUR TAKEOFF MESSAGE</small><p>{flight.intention || '—'}</p></div>
               <div className="sealed-message"><span>SEALED UNTIL LANDING</span><b>到着後に開く</b></div>
               <div className="flight-actions">
                 <PrimaryAction onClick={flight.status === 'paused' ? resumeFlight : pauseFlight}>{flight.status === 'paused' ? 'RESUME FLIGHT' : 'PAUSE IN CABIN'}</PrimaryAction>
@@ -690,9 +715,9 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
             <div className="arrival-note">
               <span className="folio">SAFE LANDING / {destination.code}</span>
               <small>THE NOTE YOU LEFT FOR YOURSELF</small>
-              <h2>{flight.arrivalMessage || 'You arrived. Let the work be enough for today.'}</h2>
+              <h2>{flight.arrivalMessage || '—'}</h2>
               <p>{flight.durationMinutes} focused minutes · landed {flight.landedAt ? formatClock(new Date(flight.landedAt)) : 'just now'} in {destination.city}</p>
-              <PrimaryAction onClick={resetFlight}>BOOK ANOTHER FLIGHT</PrimaryAction>
+              <PrimaryAction onClick={resetFlight}>NEW FLIGHT</PrimaryAction>
             </div>
           )}
         </section>
@@ -705,10 +730,17 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
   const [selectedId, setSelectedId] = useState(data.routines[0]?.id ?? '')
   const [newItem, setNewItem] = useState('')
   const routine = data.routines.find((item) => item.id === selectedId) ?? data.routines[0]
-  const complete = routine.items.filter((item) => item.done).length
+  const complete = routine?.items.filter((item) => item.done).length ?? 0
 
   const updateRoutine = (updater: (routine: AppData['routines'][number]) => AppData['routines'][number]) => {
+    if (!routine) return
     setData((current) => ({ ...current, routines: current.routines.map((item) => item.id === routine.id ? updater(item) : item), updatedAt: new Date().toISOString() }))
+  }
+
+  const addRoutine = () => {
+    const next = { id: crypto.randomUUID(), name: '', items: [] }
+    setData((current) => ({ ...current, routines: [...current.routines, next], updatedAt: new Date().toISOString() }))
+    setSelectedId(next.id)
   }
 
   const addItem = (event: FormEvent) => {
@@ -720,26 +752,33 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
 
   return (
     <div className="simple-page view-enter">
-      <PageHeader index="780" japanese="繰り返すためのリスト" title="Repeat lists" />
+      <PageHeader index="780" japanese="繰り返すためのリスト" title="Repeat lists"><button className="outline-action" onClick={addRoutine}>+ NEW LIST</button></PageHeader>
       <div className="simple-spread">
         <aside className="simple-tabs paper-texture">
-          {data.routines.map((item, index) => <button key={item.id} className={item.id === routine.id ? 'is-active' : ''} onClick={() => setSelectedId(item.id)}><span>{pad(index + 1)}</span>{item.name}</button>)}
+          {data.routines.map((item, index) => <button key={item.id} className={item.id === routine?.id ? 'is-active' : ''} onClick={() => setSelectedId(item.id)}><span>{pad(index + 1)}</span>{item.name || 'untitled'}</button>)}
         </aside>
-        <section className="routine-paper paper-texture">
-          <div className="routine-title"><span>COMPLETE, REPEAT.</span><strong>{complete}/{routine.items.length}</strong></div>
-          <div className="routine-lines">
-            {routine.items.map((item, index) => (
-              <label key={item.id} className={item.done ? 'is-done' : ''}>
-                <span>{pad(index + 1)}</span>
-                <input type="checkbox" checked={item.done} onChange={() => updateRoutine((current) => ({ ...current, items: current.items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry) }))} />
-                <i />
-                <b>{item.text}</b>
-              </label>
-            ))}
-          </div>
-          <form className="paper-form" onSubmit={addItem}><input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="ADD ANOTHER STEP" /><button>ADD</button></form>
-          <button className="underlined-action" onClick={() => updateRoutine((current) => ({ ...current, items: current.items.map((item) => ({ ...item, done: false })) }))}>RESET THIS LIST ↻</button>
-        </section>
+        {routine ? (
+          <section className="routine-paper paper-texture">
+            <div className="routine-title">
+              <input className="routine-name" value={routine.name} onChange={(event) => updateRoutine((current) => ({ ...current, name: event.target.value }))} placeholder="untitled" />
+              <strong>{complete}/{routine.items.length}</strong>
+            </div>
+            <div className="routine-lines">
+              {routine.items.map((item, index) => (
+                <label key={item.id} className={item.done ? 'is-done' : ''}>
+                  <span>{pad(index + 1)}</span>
+                  <input type="checkbox" checked={item.done} onChange={() => updateRoutine((current) => ({ ...current, items: current.items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry) }))} />
+                  <i />
+                  <b>{item.text}</b>
+                </label>
+              ))}
+            </div>
+            <form className="paper-form" onSubmit={addItem}><input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="new item" /><button>ADD</button></form>
+            <button className="underlined-action" onClick={() => updateRoutine((current) => ({ ...current, items: current.items.map((item) => ({ ...item, done: false })) }))}>RESET ↻</button>
+          </section>
+        ) : (
+          <section className="empty-tool paper-texture"><span>0 lists</span><button onClick={addRoutine}>+ new list</button></section>
+        )}
       </div>
     </div>
   )
@@ -752,7 +791,7 @@ function MomentView({ data, setData, now }: { data: AppData; setData: DataSetter
       <PageHeader index="781" japanese="ひとつの大切な瞬間" title="Point in time" />
       <section className="moment-poster paper-texture">
         <span className="vertical-copy">TIME ARCHIVE / VANCOUVER</span>
-        <input className="moment-name" value={data.moment.label} onChange={(event) => setData((current) => ({ ...current, moment: { ...current.moment, label: event.target.value } }))} />
+        <input className="moment-name" value={data.moment.label} onChange={(event) => setData((current) => ({ ...current, moment: { ...current.moment, label: event.target.value } }))} placeholder="event" />
         <div className="moment-count">
           <strong>{diff.days}</strong><span>days</span><strong>{pad(diff.hours)}</strong><span>hrs</span><strong>{pad(diff.minutes)}</strong><span>min</span><strong>{pad(diff.seconds)}</strong><span>sec</span>
         </div>
@@ -773,7 +812,7 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [selectedId, setSelectedId] = useState(data.notes[0]?.id ?? '')
   const selected = data.notes.find((note) => note.id === selectedId) ?? data.notes[0]
   const addNote = () => {
-    const note = { id: crypto.randomUUID(), title: 'Untitled note', body: '', updatedAt: new Date().toISOString() }
+    const note = { id: crypto.randomUUID(), title: '', body: '', updatedAt: new Date().toISOString() }
     setData((current) => ({ ...current, notes: [note, ...current.notes] }))
     setSelectedId(note.id)
   }
@@ -784,9 +823,10 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
       <PageHeader index="782" japanese="言葉を残しておく" title="Notes"><button className="outline-action" onClick={addNote}>+ NEW NOTE</button></PageHeader>
       <div className="notes-spread">
         <aside className="note-index">
-          {data.notes.map((note, index) => <button key={note.id} className={note.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(note.id)}><span>{pad(index + 1)}</span><div>{note.title}<small>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(note.updatedAt))}</small></div></button>)}
+          {data.notes.map((note, index) => <button key={note.id} className={note.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(note.id)}><span>{pad(index + 1)}</span><div>{note.title || 'untitled'}<small>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(note.updatedAt))}</small></div></button>)}
         </aside>
-        {selected && <section className="note-paper paper-texture"><input value={selected.title} onChange={(event) => update({ title: event.target.value })} /><textarea value={selected.body} onChange={(event) => update({ body: event.target.value })} placeholder="Start writing…" /><span>AUTOSAVED LOCALLY / 自動保存</span></section>}
+        {selected && <section className="note-paper paper-texture"><input value={selected.title} onChange={(event) => update({ title: event.target.value })} placeholder="untitled" /><textarea value={selected.body} onChange={(event) => update({ body: event.target.value })} /><span>AUTOSAVED LOCALLY / 自動保存</span></section>}
+        {!selected && <section className="empty-tool paper-texture"><span>0 notes</span><button onClick={addNote}>+ new note</button></section>}
       </div>
     </div>
   )
@@ -794,14 +834,31 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
 
 function TrackersView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const change = (id: string, amount: number) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, value: Math.max(0, Math.min(tracker.target, Number((tracker.value + amount).toFixed(2)))) } : tracker) }))
+  const update = (id: string, patch: Partial<AppData['trackers'][number]>) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, ...patch } : tracker), updatedAt: new Date().toISOString() }))
+  const addTracker = () => setData((current) => ({ ...current, trackers: [...current.trackers, { id: crypto.randomUUID(), label: '', value: 0, target: 1, unit: '', step: 1 }], updatedAt: new Date().toISOString() }))
   return (
     <div className="simple-page view-enter">
-      <PageHeader index="783" japanese="本当に大切なことだけ" title="Specific trackers" />
+      <PageHeader index="783" japanese="本当に大切なことだけ" title="Specific trackers"><button className="outline-action" onClick={addTracker}>+ NEW TRACKER</button></PageHeader>
       <section className="tracker-spread paper-texture">
-        <p>not everything needs a streak.<small>すべてを記録する必要はない。</small></p>
+        <p>{pad(data.trackers.length)} trackers</p>
         {data.trackers.map((tracker, index) => {
           const progress = Math.min(100, (tracker.value / tracker.target) * 100)
-          return <article key={tracker.id}><span>{pad(index + 1)}</span><div><strong>{tracker.label}</strong><i><b style={{ transform: `scaleX(${progress / 100})` }} /></i></div><em>{tracker.value} / {tracker.target} {tracker.unit}</em><div className="tracker-buttons"><button onClick={() => change(tracker.id, -tracker.step)}>−</button><button onClick={() => change(tracker.id, tracker.step)}>＋</button></div></article>
+          return (
+            <article key={tracker.id}>
+              <span>{pad(index + 1)}</span>
+              <div className="tracker-main">
+                <input className="tracker-name" value={tracker.label} onChange={(event) => update(tracker.id, { label: event.target.value })} placeholder="name" />
+                <i><b style={{ transform: `scaleX(${progress / 100})` }} /></i>
+                <div className="tracker-settings">
+                  <label>target <input type="number" min="0.01" step="any" value={tracker.target} onChange={(event) => update(tracker.id, { target: Math.max(.01, Number(event.target.value)) })} /></label>
+                  <label>step <input type="number" min="0.01" step="any" value={tracker.step} onChange={(event) => update(tracker.id, { step: Math.max(.01, Number(event.target.value)) })} /></label>
+                  <label>unit <input value={tracker.unit} onChange={(event) => update(tracker.id, { unit: event.target.value })} /></label>
+                </div>
+              </div>
+              <em>{tracker.value} / {tracker.target} {tracker.unit}</em>
+              <div className="tracker-buttons"><button onClick={() => change(tracker.id, -tracker.step)}>−</button><button onClick={() => change(tracker.id, tracker.step)}>＋</button></div>
+            </article>
+          )
         })}
       </section>
     </div>
@@ -837,15 +894,19 @@ function App() {
       <header className="app-chrome">
         <button className="brand-lockup" onClick={() => setActiveView('today')}>
           <img src="/favicon.ico" alt="" aria-hidden="true" />
-          <span className="brand-copy"><strong>snoopy's home;</strong><small>personal archive</small></span>
+          <span className="brand-copy"><strong>snoopy's home;</strong><small>local tools</small></span>
         </button>
         <nav aria-label="Main tools">
           {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => setActiveView(item.id)}><span>{item.number}</span>{item.label}</button>)}
         </nav>
-        <div className="chrome-status"><i /> LOCAL ARCHIVE <span>{activeIndex}/08</span></div>
+        <div className="chrome-status"><i /> LOCAL <span>{activeIndex}/08</span></div>
       </header>
 
-      <aside className="issue-rail" aria-hidden="true"><span>SNOOPY'S HOME ARCHIVE</span><b>{activeIndex}</b><small>VANCOUVER, BC</small></aside>
+      <aside className="issue-rail">
+        <span>SNOOPY'S HOME</span>
+        <AirportClocks now={now} />
+        <b>{activeIndex}</b>
+      </aside>
 
       <main className="app-content">
         {activeView === 'today' && <TodayView data={data} onNavigate={setActiveView} />}
