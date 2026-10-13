@@ -10,6 +10,7 @@ export interface Airport {
 export const AIRPORTS: Airport[] = [
   { code: 'YVR', city: 'Vancouver', name: 'Vancouver International', country: 'Canada', latitude: 49.1947, longitude: -123.1792 },
   { code: 'YYC', city: 'Calgary', name: 'Calgary International', country: 'Canada', latitude: 51.1215, longitude: -114.0076 },
+  { code: 'YEG', city: 'Edmonton', name: 'Edmonton International', country: 'Canada', latitude: 53.3097, longitude: -113.5797 },
   { code: 'YYZ', city: 'Toronto', name: 'Toronto Pearson', country: 'Canada', latitude: 43.6777, longitude: -79.6248 },
   { code: 'YUL', city: 'Montréal', name: 'Montréal–Trudeau', country: 'Canada', latitude: 45.4706, longitude: -73.7408 },
   { code: 'SEA', city: 'Seattle', name: 'Seattle–Tacoma', country: 'United States', latitude: 47.4502, longitude: -122.3088 },
@@ -36,6 +37,7 @@ export const AIRPORTS: Airport[] = [
   { code: 'HKG', city: 'Hong Kong', name: 'Hong Kong International', country: 'Hong Kong', latitude: 22.308, longitude: 113.9185 },
   { code: 'SIN', city: 'Singapore', name: 'Singapore Changi', country: 'Singapore', latitude: 1.3644, longitude: 103.9915 },
   { code: 'BKK', city: 'Bangkok', name: 'Suvarnabhumi', country: 'Thailand', latitude: 13.69, longitude: 100.7501 },
+  { code: 'MYY', city: 'Miri', name: 'Miri Airport', country: 'Malaysia', latitude: 4.3253, longitude: 113.9883 },
   { code: 'DEL', city: 'Delhi', name: 'Indira Gandhi International', country: 'India', latitude: 28.5562, longitude: 77.1 },
   { code: 'SYD', city: 'Sydney', name: 'Sydney Kingsford Smith', country: 'Australia', latitude: -33.9399, longitude: 151.1753 },
   { code: 'MEL', city: 'Melbourne', name: 'Melbourne Airport', country: 'Australia', latitude: -37.669, longitude: 144.841 },

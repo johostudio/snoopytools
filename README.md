@@ -20,7 +20,7 @@ Then open the local URL Vite prints. The app is responsive and installable as a 
 - Apple Calendar concert exports with the full event context and an alert
 - A location-aware golden-hour desk with sunrise, morning gold, evening gold, sunset, and a live countdown
 - Airport-to-airport focus flights with a duration-controlled countdown, moving route map, pause/resume, a takeoff intention, and a sealed arrival note
-- Live YVR and KHN local clocks in the desktop side rail
+- Live YVR, KHN, YYZ, SIN, HEL, LHR, YEG, MYY, and ICN clocks in the desktop side rail
 - Ordered repeatable lists with completion, reset, add, and remove actions
 - One live point-in-time counter that automatically switches between “until” and “since”
 - Plain notes with local autosave

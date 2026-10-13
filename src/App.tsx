@@ -59,6 +59,13 @@ function formatTimer(totalSeconds: number) {
 const AIRPORT_CLOCKS = [
   { code: 'YVR', city: 'Vancouver', timeZone: 'America/Vancouver' },
   { code: 'KHN', city: 'Nanchang', timeZone: 'Asia/Shanghai' },
+  { code: 'YYZ', city: 'Toronto', timeZone: 'America/Toronto' },
+  { code: 'SIN', city: 'Singapore', timeZone: 'Asia/Singapore' },
+  { code: 'HEL', city: 'Helsinki', timeZone: 'Europe/Helsinki' },
+  { code: 'LHR', city: 'London', timeZone: 'Europe/London' },
+  { code: 'YEG', city: 'Edmonton', timeZone: 'America/Edmonton' },
+  { code: 'MYY', city: 'Miri', timeZone: 'Asia/Kuching' },
+  { code: 'ICN', city: 'Seoul', timeZone: 'Asia/Seoul' },
 ]
 
 function AirportClocks({ now }: { now: Date }) {
@@ -226,7 +233,10 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         <img src="/field-at-dusk.jpg" alt="Wildflower field at dusk" />
         <div className="definition-block">
           <span>snoopy's home</span>
-          <small>/ index /</small>
+          <small>/ˈsnuːpiz həʊm/</small>
+          <em>noun</em>
+          <p><mark>personal tools, stored locally.</mark></p>
+          <p className="definition-chinese" lang="zh-Hans">史努比之家；保存在本机的个人工具。</p>
         </div>
         <b>© SNOOPY'S HOME 2026</b>
       </section>
@@ -234,10 +244,30 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
       <section className="manifesto-paper paper-texture reveal">
         <span className="vertical-copy">PERSONAL ARCHIVE / VANCOUVER, BC</span>
         <div className="manifesto-copy index-stats">
-          <p><mark>{pad(data.birthdays.length)}</mark> birthdays</p>
-          <p><mark>{pad(data.concerts.length)}</mark> concerts</p>
-          <p><mark>{pad(data.notes.length)}</mark> notes</p>
-          <p><mark>{pad(data.routines.length)}</mark> lists</p>
+          <article>
+            <div><mark>{pad(data.birthdays.length)}</mark><b>birthdays</b></div>
+            <em>noun</em>
+            <p>dates, reminders, notes, cards.</p>
+            <small lang="zh-Hans">生日；日期、提醒、备注与贺卡。</small>
+          </article>
+          <article>
+            <div><mark>{pad(data.concerts.length)}</mark><b>concerts</b></div>
+            <em>noun</em>
+            <p>venue, lineup, company, photos.</p>
+            <small lang="zh-Hans">演唱会；场地、阵容、同行者与照片。</small>
+          </article>
+          <article>
+            <div><mark>{pad(data.notes.length)}</mark><b>notes</b></div>
+            <em>noun</em>
+            <p>plain text saved on this device.</p>
+            <small lang="zh-Hans">笔记；保存在本机的文字。</small>
+          </article>
+          <article>
+            <div><mark>{pad(data.routines.length)}</mark><b>lists</b></div>
+            <em>noun</em>
+            <p>steps that complete and reset.</p>
+            <small lang="zh-Hans">清单；可完成并重置的步骤。</small>
+          </article>
           <strong>local / this device</strong>
         </div>
         <span className="archive-number">001</span>
