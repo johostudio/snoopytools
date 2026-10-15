@@ -1,53 +1,71 @@
-# Cross-device sync setup
+# Cross-device sync
 
-Snoopy's Home is offline-first. Every edit is written to the current device immediately, whether or not the network is available. Signed-in devices mirror structured records and photo blobs to private per-user data in Convex. Reactive queries deliver changes made by another signed-in device.
+Snoopy's Home is offline-first. Every edit is kept on the current device immediately. A signed-in device mirrors the archive to the `snoopy-home-sync` Cloudflare Worker and checks for newer changes when it opens, regains focus, reconnects, and every 15 seconds while visible.
 
-## What is stored where
+## Storage layout
 
-| Data | Offline copy | Cloud copy after sign-in |
+| Data | Offline copy | Cloud copy |
 | --- | --- | --- |
-| birthdays, concerts, notes, repeat lists, quick todos, trackers, point-in-time, golden-hour settings, theme, current flight, flight history, Last.fm cache, and music picks | browser `localStorage` | one private `appStates` document in Convex |
-| birthday and concert photos | IndexedDB database `snoopytools-media` | Convex Storage plus private `photos` metadata |
+| birthdays, concerts, notes, repeat lists, quick todos, trackers, time target, golden-hour settings, theme, current flight, flight history, Last.fm cache, and music picks | browser `localStorage` | versioned JSON object in private R2 storage, with its current pointer in D1 |
+| birthday and concert photos | IndexedDB database `snoopytools-media` | private R2 objects, with metadata in D1 |
+| accounts and renewable sessions | browser stores only the random session token | password hash and hashed session token in D1 |
 | app shell, fonts, map code, and static imagery | service-worker cache | Vercel deployment/CDN |
 
-The local copy remains available while offline. Reconnecting compares the cloud and local timestamps, uploads the newest document and missing photos, and removes cloud photos that are no longer referenced. A newly signed-in device pulls the existing document and downloads its photos.
+R2 is used for the full archive rather than putting the JSON in a D1 row. This avoids D1's 2 MB row limit and keeps large notes, histories, and cached music data together. Photos retain their original blobs. The Worker currently accepts an archive up to 25 MB and an individual photo up to 100 MB.
 
-## Development setup
+Cloudflare's Standard R2 free tier currently includes 10 GB-month of storage, one million Class A operations, ten million Class B operations, and free egress each month. D1's free tier allows a 500 MB database and 5 GB total across the account. Confirm current limits before materially expanding usage:
 
-The repository is linked to the `snoopyhome` Convex project. On another development machine:
+- https://developers.cloudflare.com/r2/pricing/
+- https://developers.cloudflare.com/d1/platform/limits/
 
-```powershell
-npm install
-npx convex dev
-```
+## Existing resources
 
-Log into the same Convex account and select the existing project. The command creates a private `.env.local` with `VITE_CONVEX_URL` and starts a development watcher. The public deployment URLs may be copied to Vercel; the deployment selector and any deploy keys must remain private.
+The production resources are declared in `wrangler.jsonc`:
 
-Open the app's sync panel, create an account with an email and a password of at least eight characters, and use the same credentials on each device. Password reset email is not enabled yet, so save the password in a password manager.
+- Worker: `snoopy-home-sync`
+- D1 database: `snoopy-home-db`
+- R2 bucket: `snoopy-home-media`
 
-The web/PWA auth provider stores a renewable Convex session in that device's `localStorage`. After the first sign-in, closing the PWA, refreshing it, or installing a newer service worker does not require another password. There is no sign-out control in the app, so the session remains until site storage is cleared or the refresh session is revoked.
-
-## Last.fm connection
-
-The listening browser uses Last.fm's public read-only methods through a Convex action. Create an API account at `https://www.last.fm/api/account/create`, then set only the API key in Convex. The API secret is not used by this app.
-
-After a Last.fm username connects successfully, it is stored with the rest of the app archive. The browser refreshes stale listening data when opened and keeps the last successful copy available offline.
+Apply schema changes and deploy with:
 
 ```powershell
-npx convex env set LASTFM_API_KEY
-npx convex env set --prod LASTFM_API_KEY
+npm run cloud:migrate
+npm run cloud:deploy
 ```
 
-Each command prompts for the value without adding it to Git or a shell command. The username is entered inside the app and syncs with the archive. Stats refresh only when requested; the most recent weekly, monthly, and 12-month results remain cached for offline browsing and top-three selection.
+The Last.fm key is stored only as a Worker secret:
 
-## Offline and conflict behavior
+```powershell
+npx wrangler secret put LASTFM_API_KEY
+```
 
-- The PWA opens from its cached shell after it has been loaded once. Recently viewed OpenStreetMap tiles are cached for flight-map reuse.
-- Edits and photos remain available on the device while offline.
-- The sync indicator changes to `offline` and automatically reconciles after the browser reconnects.
-- Concurrent edits currently use document-level last-write-wins based on the app update timestamp.
-- Field-level merging and tombstones are the next hardening step if simultaneous edits on several devices become common.
+The frontend uses the public Worker URL through `VITE_SYNC_API_URL`. This URL is not a secret. Passwords and the Last.fm key must never be placed in a `VITE_` variable.
 
-## Apple sign-in
+## Moving from Convex
 
-The shared data model already supports adding another identity provider. Apple sign-in still requires an Apple Developer account, a Services ID, a signing key, and provider environment variables. Keep email/password enabled as the free fallback when Apple OAuth is added.
+Convex accounts cannot be copied because their original passwords are not available. On the first Cloudflare-backed release:
+
+1. Open the updated app on the device that already contains the complete archive.
+2. Open the profile panel and choose **create account**. The same email may be reused, but this is a new Cloudflare-backed account.
+3. The existing local archive and IndexedDB photos upload automatically.
+4. On each other device, install/open the updated app and choose **sign in** with that new account.
+5. Leave the first device open until the panel says the archive is available on other signed-in devices.
+
+No local records are erased during this change. The `snoopytools:data:v1` local key and `snoopytools-media` IndexedDB database are unchanged. If another device contains unique edits that never reached the main device, open that device before clearing any browser/PWA data.
+
+## Authentication
+
+- Passwords are processed by the Worker and stored only as salted PBKDF2 hashes.
+- The browser receives a random session token; D1 stores only its SHA-256 hash.
+- Sessions last about 400 days and are reused after closing, refreshing, or updating the PWA.
+- There is intentionally no sign-out control. Clearing the site's storage removes the session from that device.
+- The Worker accepts browser requests only from the origins listed in `APP_ORIGINS` in `wrangler.jsonc`.
+
+## Conflict and offline behavior
+
+- Local edits never wait for the network.
+- When reconnecting, the newest archive timestamp wins.
+- The Worker rejects an older upload rather than overwriting a newer R2 version.
+- A rejected upload immediately pulls the newer copy.
+- Photos upload only when their referenced IDs change; removed photo references are pruned in bounded batches.
+- Simultaneous edits still resolve at the whole-archive level. Field-level merging would be a later enhancement.

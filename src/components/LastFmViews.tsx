@@ -1,7 +1,6 @@
-import { useAction, useConvexAuth } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { api } from '../../convex/_generated/api'
 import type { AppData, LastFmEntry, LastFmSnapshot, ListeningCategory, ListeningPeriod, ToolView } from '../domain'
+import { getLastFmDashboard } from '../lib/cloudApi'
 
 type DataSetter = Dispatch<SetStateAction<AppData>>
 
@@ -18,9 +17,8 @@ const CATEGORIES: { id: ListeningCategory; label: string; singular: string }[] =
 ]
 
 function cleanError(error: unknown) {
-  if (error && typeof error === 'object' && 'data' in error && typeof error.data === 'string') return error.data
   if (!(error instanceof Error)) return 'last.fm could not be reached.'
-  return error.message.replace(/^\[CONVEX[^\]]*\]\s*/i, '').replace(/^Uncaught Error:\s*/i, '').trim()
+  return error.message.trim()
 }
 
 function number(value: number) {
@@ -93,9 +91,7 @@ function saveSnapshot(setData: DataSetter, username: string, snapshot: LastFmSna
   }))
 }
 
-export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData; setData: DataSetter; onNavigate: (view: ToolView) => void }) {
-  const getDashboard = useAction(api.lastfm.getDashboard)
-  const { isAuthenticated } = useConvexAuth()
+export function LastFmBrowserView({ data, setData, onNavigate, authenticated }: { data: AppData; setData: DataSetter; onNavigate: (view: ToolView) => void; authenticated: boolean }) {
   const [usernameDraft, setUsernameDraft] = useState<string | null>(null)
   const [period, setPeriod] = useState<ListeningPeriod>('week')
   const [section, setSection] = useState<ListeningCategory | 'recent'>('recent')
@@ -113,19 +109,19 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
     setBusy(true)
     if (!automatic) setMessage('')
     try {
-      const result = await getDashboard({ username: cleanUsername, period })
-      saveSnapshot(setData, cleanUsername, result as LastFmSnapshot)
+      const result = await getLastFmDashboard(cleanUsername, period)
+      saveSnapshot(setData, cleanUsername, result)
       if (!automatic) setMessage('listening archive updated.')
     } catch (error) {
       if (!automatic || !snapshot) setMessage(cleanError(error))
     } finally {
       setBusy(false)
     }
-  }, [data.lastFm.username, getDashboard, period, setData, snapshot, usernameDraft])
+  }, [data.lastFm.username, period, setData, snapshot, usernameDraft])
 
   useEffect(() => {
     const username = data.lastFm.username.trim()
-    if (!username || !isAuthenticated || !navigator.onLine) return
+    if (!username || !authenticated || !navigator.onLine) return
     const key = `${username.toLowerCase()}:${period}`
     if (autoLoadedRef.current.has(key)) return
     const fetchedAt = snapshot?.fetchedAt ? Date.parse(snapshot.fetchedAt) : 0
@@ -134,7 +130,7 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
     autoLoadedRef.current.add(key)
     // oxlint-disable-next-line react/set-state-in-effect -- refreshes the external Last.fm cache after a saved connection becomes stale.
     void load(true)
-  }, [data.lastFm.username, isAuthenticated, load, period, snapshot?.fetchedAt])
+  }, [authenticated, data.lastFm.username, load, period, snapshot?.fetchedAt])
 
   const entries = section === 'recent' ? snapshot?.recent ?? [] : snapshot?.[section] ?? []
   const topArtist = snapshot?.artists[0]
@@ -186,7 +182,6 @@ export function LastFmBrowserView({ data, setData, onNavigate }: { data: AppData
 }
 
 export function LastFmPicksView({ data, setData, onNavigate }: { data: AppData; setData: DataSetter; onNavigate: (view: ToolView) => void }) {
-  const getDashboard = useAction(api.lastfm.getDashboard)
   const [period, setPeriod] = useState<ListeningPeriod>('week')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -203,8 +198,8 @@ export function LastFmPicksView({ data, setData, onNavigate }: { data: AppData; 
     setBusy(true)
     setMessage('')
     try {
-      const result = await getDashboard({ username: data.lastFm.username, period })
-      saveSnapshot(setData, data.lastFm.username, result as LastFmSnapshot)
+      const result = await getLastFmDashboard(data.lastFm.username, period)
+      saveSnapshot(setData, data.lastFm.username, result)
       setMessage('top 15 updated.')
     } catch (error) {
       setMessage(cleanError(error))

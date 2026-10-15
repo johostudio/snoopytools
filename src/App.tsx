@@ -543,7 +543,7 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
       {!sync.configured && (
         <div className="sync-setup-note">
           <b>cloud connection needed</b>
-          <span>run the convex setup command in this project, then add its public deployment url to the app environment.</span>
+          <span>deploy the cloudflare sync worker, then add its public url to the app environment.</span>
         </div>
       )}
 
@@ -563,7 +563,7 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
             </div>
             <button className="sync-email__submit" disabled={busy}>{busy ? 'working…' : flow === 'signIn' ? 'sign in' : 'create account'}</button>
           </form>
-          <p className="sync-apple-note">your password is never stored here. convex keeps a renewable session on this device after the first sign-in.</p>
+          <p className="sync-apple-note">your password is never stored here. cloudflare keeps a private renewable session on this device after the first sign-in.</p>
         </>
       )}
 
@@ -574,7 +574,7 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
         </div>
       )}
 
-      <small>your offline copy stays in local storage and indexeddb. while signed in, the same archive is mirrored to your private convex cloud.</small>
+      <small>your offline copy stays in local storage and indexeddb. while signed in, the same archive is mirrored to private cloudflare storage.</small>
     </aside>
   )
 }
@@ -1492,7 +1492,7 @@ function App() {
           {activeView === 'moment' && <MomentView data={data} setData={setData} />}
           {activeView === 'notes' && <NotesView data={data} setData={setData} />}
           {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}
-          {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} />}
+          {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} authenticated={sync.authenticated} />}
           {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
         </Suspense>
       </main>

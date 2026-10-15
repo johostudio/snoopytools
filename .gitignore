@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 dogfood-output/
+.wrangler/
 
 # Editor directories and files
 .vscode/*
