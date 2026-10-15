@@ -1266,13 +1266,18 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
     setData((current) => ({ ...current, quickTodos: updater(current.quickTodos), updatedAt: new Date().toISOString() }))
   }
 
-  const addTodo = (event: FormEvent) => {
-    event.preventDefault()
-    const text = draft.trim()
-    if (!text) return
-    updateTodos((items) => [...items, { id: crypto.randomUUID(), text, done: false }])
+  const commitDraft = (value: string) => {
+    const text = value.trim()
+    if (!text) return false
+    updateTodos((items) => [{ id: crypto.randomUUID(), text, done: false }, ...items])
     setDraft('')
     window.requestAnimationFrame(() => draftRef.current?.focus())
+    return true
+  }
+
+  const addTodo = (event: FormEvent) => {
+    event.preventDefault()
+    commitDraft(draftRef.current?.value ?? draft)
   }
 
   return (
@@ -1286,7 +1291,20 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
 
         <form className="quick-todo-capture" onSubmit={addTodo}>
           <span>{pad(data.quickTodos.length + 1)}</span>
-          <input ref={draftRef} autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="write a task" aria-label="new quick task" enterKeyHint="enter" />
+          <input
+            ref={draftRef}
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              commitDraft(event.currentTarget.value)
+            }}
+            placeholder="write a task"
+            aria-label="new quick task"
+            enterKeyHint="enter"
+          />
           <button type="submit" aria-label="add task">↵</button>
         </form>
 
