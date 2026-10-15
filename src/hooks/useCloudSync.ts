@@ -55,6 +55,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error.message.trim() || fallback
 }
 
+function isOfflineFailure(error: unknown) {
+  if (!navigator.onLine) return true
+  if (!(error instanceof TypeError)) return false
+  return /fetch|network|internet|load failed/i.test(error.message)
+}
+
 export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<AppData>>) {
   const configured = cloudConfigured()
   const cachedUser = configured && hasCloudSession() ? cachedCloudUser() : null
@@ -91,8 +97,9 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       resetAuthentication()
       return
     }
-    setStatus(navigator.onLine ? 'error' : 'offline')
-    setMessage(navigator.onLine ? errorMessage(error, fallback) : 'saved locally; waiting for a connection')
+    const offline = isOfflineFailure(error)
+    setStatus(offline ? 'offline' : 'error')
+    setMessage(offline ? 'saved locally; waiting for a connection' : errorMessage(error, fallback))
   }, [resetAuthentication])
 
   useEffect(() => {
