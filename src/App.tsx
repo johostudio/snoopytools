@@ -33,6 +33,56 @@ import { deletePhoto, getPhoto, savePhoto } from './lib/photoStore'
 
 type DataSetter = Dispatch<SetStateAction<AppData>>
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
+
+interface DesktopInstallState {
+  isDesktop: boolean
+  canInstall: boolean
+  installed: boolean
+  install: () => Promise<void>
+}
+
+function standaloneDisplay() {
+  const iosNavigator = navigator as Navigator & { standalone?: boolean }
+  return window.matchMedia('(display-mode: standalone)').matches || Boolean(iosNavigator.standalone)
+}
+
+function useDesktopInstall(): DesktopInstallState {
+  const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  const [installed, setInstalled] = useState(standaloneDisplay)
+  const isDesktop = !/android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent)
+
+  useEffect(() => {
+    const capturePrompt = (event: Event) => {
+      event.preventDefault()
+      setPromptEvent(event as BeforeInstallPromptEvent)
+    }
+    const markInstalled = () => {
+      setInstalled(true)
+      setPromptEvent(null)
+    }
+    window.addEventListener('beforeinstallprompt', capturePrompt)
+    window.addEventListener('appinstalled', markInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', capturePrompt)
+      window.removeEventListener('appinstalled', markInstalled)
+    }
+  }, [])
+
+  const install = async () => {
+    if (!promptEvent) return
+    await promptEvent.prompt()
+    const choice = await promptEvent.userChoice
+    if (choice.outcome === 'accepted') setInstalled(true)
+    setPromptEvent(null)
+  }
+
+  return { isDesktop, canInstall: Boolean(promptEvent), installed, install }
+}
+
 const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'today', label: 'index', number: '00' },
   { id: 'birthdays', label: 'birthdays', number: '01' },
@@ -40,11 +90,12 @@ const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'sunset', label: 'sunset', number: '03' },
   { id: 'flight', label: 'flight', number: '04' },
   { id: 'routines', label: 'repeat', number: '05' },
-  { id: 'moment', label: 'time', number: '06' },
-  { id: 'notes', label: 'notes', number: '07' },
-  { id: 'trackers', label: 'trackers', number: '08' },
-  { id: 'lastfm', label: 'last.fm', number: '09' },
-  { id: 'music-picks', label: 'bests', number: '10' },
+  { id: 'quick-todos', label: 'to do', number: '06' },
+  { id: 'moment', label: 'time', number: '07' },
+  { id: 'notes', label: 'notes', number: '08' },
+  { id: 'trackers', label: 'trackers', number: '09' },
+  { id: 'lastfm', label: 'last.fm', number: '10' },
+  { id: 'music-picks', label: 'bests', number: '11' },
 ]
 
 const THEMES: { id: AppTheme; label: string }[] = [
@@ -294,7 +345,7 @@ function OptionalCalendarAction({
   )
 }
 
-function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; onClose: () => void }) {
+function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; desktopInstall: DesktopInstallState; onClose: () => void }) {
   const [email, setEmail] = useState(() => window.localStorage.getItem('snoopytools:last-email') ?? '')
   const [password, setPassword] = useState('')
   const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
@@ -350,6 +401,16 @@ function SyncPanel({ sync, data, setData, onClose }: { sync: ReturnType<typeof u
         </div>
       </section>
 
+      {desktopInstall.isDesktop && (
+        <section className={`desktop-install ${desktopInstall.installed ? 'is-installed' : ''}`} aria-label="pc app installation">
+          <span>pc app / windows</span>
+          <strong>{desktopInstall.installed ? 'installed on this pc' : 'snoopy’s home, in its own window.'}</strong>
+          <p>{desktopInstall.installed ? 'this app uses the same offline archive and cloud sync.' : 'install the same archive as a desktop app. it keeps working offline and syncs with your phone.'}</p>
+          {desktopInstall.canInstall && <button type="button" onClick={() => void desktopInstall.install()}>install pc app ↘</button>}
+          {!desktopInstall.installed && !desktopInstall.canInstall && <small>open this page in edge or chrome, then choose install app from the address bar.</small>}
+        </section>
+      )}
+
       <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'this session stays saved on this device' : 'sign in once; this device will remember you'}</span></div>
       {(sync.status === 'error' || sync.status === 'offline') && <p className="sync-state-message">{sync.message}</p>}
 
@@ -402,42 +463,28 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         <img src="/headphones-field.jpg" alt="Person listening through headphones in a green field" />
         <div className="definition-block">
           <span>snoopy's home</span>
-          <small>/ˈsnuːpiz həʊm/</small>
-          <em>noun</em>
-          <p><mark>personal tools, stored locally.</mark></p>
           <p className="definition-chinese" lang="zh-Hans">史努比之家；保存在本机的个人工具。</p>
         </div>
-        <b>© SNOOPY'S HOME 2026</b>
       </section>
 
       <section className="manifesto-paper paper-texture reveal">
-        <span className="vertical-copy">PERSONAL ARCHIVE / VANCOUVER, BC</span>
         <div className="manifesto-copy index-stats">
           <button type="button" className="index-stat" onClick={() => onNavigate('birthdays')}>
             <div><mark>{pad(data.birthdays.length)}</mark><b>birthdays</b></div>
-            <em>noun</em>
-            <p>dates, reminders, notes, cards.</p>
             <small lang="zh-Hans">生日；日期、提醒、备注与贺卡。</small>
           </button>
           <button type="button" className="index-stat" onClick={() => onNavigate('concerts')}>
             <div><mark>{pad(data.concerts.length)}</mark><b>concerts</b></div>
-            <em>noun</em>
-            <p>venue, lineup, company, photos.</p>
             <small lang="zh-Hans">演唱会；场地、阵容、同行者与照片。</small>
           </button>
           <button type="button" className="index-stat" onClick={() => onNavigate('notes')}>
             <div><mark>{pad(data.notes.length)}</mark><b>notes</b></div>
-            <em>noun</em>
-            <p>plain text saved on this device.</p>
             <small lang="zh-Hans">笔记；保存在本机的文字。</small>
           </button>
           <button type="button" className="index-stat" onClick={() => onNavigate('routines')}>
             <div><mark>{pad(data.routines.length)}</mark><b>lists</b></div>
-            <em>noun</em>
-            <p>steps that complete and reset.</p>
             <small lang="zh-Hans">清单；可完成并重置的步骤。</small>
           </button>
-          <strong>local / this device</strong>
         </div>
         <span className="archive-number">001</span>
       </section>
@@ -1075,6 +1122,64 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
   )
 }
 
+function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter }) {
+  const [draft, setDraft] = useState('')
+  const draftRef = useRef<HTMLInputElement>(null)
+  const doneCount = data.quickTodos.filter((item) => item.done).length
+
+  const updateTodos = (updater: (items: AppData['quickTodos']) => AppData['quickTodos']) => {
+    setData((current) => ({ ...current, quickTodos: updater(current.quickTodos), updatedAt: new Date().toISOString() }))
+  }
+
+  const addTodo = (event: FormEvent) => {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text) return
+    updateTodos((items) => [...items, { id: crypto.randomUUID(), text, done: false }])
+    setDraft('')
+    window.requestAnimationFrame(() => draftRef.current?.focus())
+  }
+
+  return (
+    <div className="quick-todo-page view-enter">
+      <PageHeader index="786" japanese="すぐやること" title="quick to do" />
+      <section className="quick-todo-sheet paper-texture reveal">
+        <header className="quick-todo-heading">
+          <div><span>one running list / 快速清单</span><strong>{pad(data.quickTodos.length - doneCount)}</strong><small>open</small></div>
+          <p>type. enter. next.</p>
+        </header>
+
+        <form className="quick-todo-capture" onSubmit={addTodo}>
+          <span>{pad(data.quickTodos.length + 1)}</span>
+          <input ref={draftRef} autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="write a task" aria-label="new quick task" enterKeyHint="enter" />
+          <button type="submit" aria-label="add task">↵</button>
+        </form>
+
+        <div className="quick-todo-list" aria-live="polite">
+          {data.quickTodos.map((item, index) => (
+            <article key={item.id} className={item.done ? 'is-done' : ''}>
+              <span>{pad(index + 1)}</span>
+              <button type="button" className="quick-todo-check" aria-label={item.done ? `mark ${item.text} incomplete` : `mark ${item.text} complete`} onClick={() => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry))}><i /></button>
+              <input value={item.text} aria-label={`task ${index + 1}`} onChange={(event) => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, text: event.target.value } : entry))} onKeyDown={(event) => {
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                draftRef.current?.focus()
+              }} />
+              <button type="button" className="quick-todo-remove" aria-label={`remove ${item.text}`} onClick={() => updateTodos((items) => items.filter((entry) => entry.id !== item.id))}>×</button>
+            </article>
+          ))}
+          {data.quickTodos.length === 0 && <p className="quick-todo-empty">the first line is waiting above.</p>}
+        </div>
+
+        <footer>
+          <span>{doneCount}/{data.quickTodos.length} finished</span>
+          {doneCount > 0 && <button type="button" onClick={() => updateTodos((items) => items.filter((item) => !item.done))}>clear finished</button>}
+        </footer>
+      </section>
+    </div>
+  )
+}
+
 function MomentView({ data, setData, now }: { data: AppData; setData: DataSetter; now: Date }) {
   const diff = differenceParts(data.moment.targetAt, now)
   return (
@@ -1165,6 +1270,7 @@ function App() {
   const [now, setNow] = useState(() => new Date())
   const [syncOpen, setSyncOpen] = useState(false)
   const sync = useCloudSync(data, setData)
+  const desktopInstall = useDesktopInstall()
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1208,11 +1314,11 @@ function App() {
           <div className="theme-switcher" aria-label="colour theme">
             {THEMES.map((theme) => <button key={theme.id} className={data.preferences.theme === theme.id ? 'is-active' : ''} onClick={() => changeTheme(theme.id)} aria-label={`${theme.label} theme`} title={`${theme.label} theme`}><i /></button>)}
           </div>
-          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open profile and sync settings"><i /> {sync.status === 'sign-in' ? 'profile' : sync.status} <span>{activeIndex}/10</span></button>
+          <button className={`chrome-status chrome-status--${sync.status}`} onClick={() => setSyncOpen((open) => !open)} aria-label="open profile and sync settings"><i /> {sync.status === 'sign-in' ? 'profile' : sync.status} <span>{activeIndex}/11</span></button>
         </div>
       </header>
 
-      {syncOpen && <SyncPanel sync={sync} data={data} setData={setData} onClose={() => setSyncOpen(false)} />}
+      {syncOpen && <SyncPanel sync={sync} data={data} setData={setData} desktopInstall={desktopInstall} onClose={() => setSyncOpen(false)} />}
 
       <aside className="issue-rail">
         <span>snoopy's home</span>
@@ -1227,6 +1333,7 @@ function App() {
         {activeView === 'sunset' && <GoldenHourView data={data} setData={setData} now={now} />}
         {activeView === 'flight' && <FocusFlightView data={data} setData={setData} now={now} />}
         {activeView === 'routines' && <RoutinesView data={data} setData={setData} />}
+        {activeView === 'quick-todos' && <QuickTodosView data={data} setData={setData} />}
         {activeView === 'moment' && <MomentView data={data} setData={setData} now={now} />}
         {activeView === 'notes' && <NotesView data={data} setData={setData} />}
         {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}

@@ -22,6 +22,7 @@ function hasPersonalData(data: AppData) {
     || data.concerts.length > 0
     || data.notes.length > 0
     || data.routines.length > 0
+    || data.quickTodos.length > 0
     || data.trackers.length > 0
     || data.flightHistory.length > 0
     || Boolean(data.lastFm.username.trim())

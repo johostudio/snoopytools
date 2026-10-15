@@ -1,6 +1,6 @@
 import { estimateFlightMinutes, findAirport } from './data/airports'
 
-export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'moment' | 'notes' | 'trackers' | 'lastfm' | 'music-picks'
+export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'quick-todos' | 'moment' | 'notes' | 'trackers' | 'lastfm' | 'music-picks'
 export type AppTheme = 'moss' | 'blue' | 'plum' | 'amber'
 export type ListeningPeriod = 'week' | 'month' | 'year'
 export type ListeningCategory = 'artists' | 'albums' | 'tracks'
@@ -26,6 +26,12 @@ export interface Routine {
   id: string
   name: string
   items: RoutineItem[]
+}
+
+export interface QuickTodo {
+  id: string
+  text: string
+  done: boolean
 }
 
 export interface Note {
@@ -147,8 +153,9 @@ function createEmptyPicks(): Record<ListeningPeriod, LastFmPeriodPicks> {
 }
 
 export interface AppData {
-  version: 8
+  version: 9
   routines: Routine[]
+  quickTodos: QuickTodo[]
   moment: {
     label: string
     targetAt: string
@@ -175,8 +182,9 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 8,
+    version: 9,
     routines: [],
+    quickTodos: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
     trackers: [],
@@ -219,6 +227,7 @@ export function migrateAppData(input: unknown): AppData {
     legacy ? items.filter((item) => !seedIds.includes(item.id)) : items
   )
   const routines = Array.isArray(candidate.routines) ? omitLegacySeeds(candidate.routines, ['morning-reset', 'leaving-home']) : defaults.routines
+  const quickTodos = Array.isArray(candidate.quickTodos) ? candidate.quickTodos : defaults.quickTodos
   const notes = Array.isArray(candidate.notes) ? omitLegacySeeds(candidate.notes, ['first-note']) : defaults.notes
   const trackers = Array.isArray(candidate.trackers) ? omitLegacySeeds(candidate.trackers, ['water', 'outside', 'deep-work']) : defaults.trackers
   const birthdays = Array.isArray(candidate.birthdays) ? omitLegacySeeds(candidate.birthdays, ['birthday-maya', 'birthday-eli']) : defaults.birthdays
@@ -265,8 +274,9 @@ export function migrateAppData(input: unknown): AppData {
   return {
     ...defaults,
     ...candidate,
-    version: 8,
+    version: 9,
     routines,
+    quickTodos,
     notes,
     trackers,
     birthdays,

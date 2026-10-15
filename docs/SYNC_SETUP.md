@@ -6,7 +6,7 @@ Snoopy's Home is offline-first. Every edit is written to the current device imme
 
 | Data | Offline copy | Cloud copy after sign-in |
 | --- | --- | --- |
-| birthdays, concerts, notes, lists, trackers, point-in-time, golden-hour settings, theme, current flight, flight history, Last.fm cache, and music picks | browser `localStorage` | one private `appStates` document in Convex |
+| birthdays, concerts, notes, repeat lists, quick todos, trackers, point-in-time, golden-hour settings, theme, current flight, flight history, Last.fm cache, and music picks | browser `localStorage` | one private `appStates` document in Convex |
 | birthday and concert photos | IndexedDB database `snoopytools-media` | Convex Storage plus private `photos` metadata |
 | app shell, fonts, map code, and static imagery | service-worker cache | Vercel deployment/CDN |
 
