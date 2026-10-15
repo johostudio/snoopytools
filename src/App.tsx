@@ -1,4 +1,7 @@
 import {
+  lazy,
+  memo,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -12,8 +15,6 @@ import {
 } from 'react'
 import * as SunCalc from 'suncalc'
 import './App.css'
-import { FlightMap } from './components/FlightMap'
-import { LastFmBrowserView, LastFmPicksView } from './components/LastFmViews'
 import { AIRPORTS, estimateFlightMinutes, findAirport, routeDistanceKm } from './data/airports'
 import {
   createInitialState,
@@ -30,6 +31,10 @@ import { useCloudSync } from './hooks/useCloudSync'
 import { addBirthdayToAppleCalendar, addConcertToAppleCalendar, shareOrDownload } from './lib/apple'
 import { renderBirthdayCard, type CardStyle } from './lib/birthdayCard'
 import { deletePhoto, getPhoto, savePhoto } from './lib/photoStore'
+
+const FlightMap = lazy(() => import('./components/FlightMap').then((module) => ({ default: module.FlightMap })))
+const LastFmBrowserView = lazy(() => import('./components/LastFmViews').then((module) => ({ default: module.LastFmBrowserView })))
+const LastFmPicksView = lazy(() => import('./components/LastFmViews').then((module) => ({ default: module.LastFmPicksView })))
 
 type DataSetter = Dispatch<SetStateAction<AppData>>
 
@@ -81,6 +86,17 @@ function useDesktopInstall(): DesktopInstallState {
   }
 
   return { isDesktop, canInstall: Boolean(promptEvent), installed, install }
+}
+
+function useLiveNow(refreshMs = 1_000) {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), refreshMs)
+    return () => window.clearInterval(timer)
+  }, [refreshMs])
+
+  return now
 }
 
 const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
@@ -160,29 +176,33 @@ const AIRPORT_CLOCKS = [
   { code: 'YEG', city: 'Edmonton', timeZone: 'America/Edmonton' },
   { code: 'MYY', city: 'Miri', timeZone: 'Asia/Kuching' },
   { code: 'ICN', city: 'Seoul', timeZone: 'Asia/Seoul' },
-]
+].map((clock) => ({
+  ...clock,
+  formatter: new Intl.DateTimeFormat('en-GB', {
+    timeZone: clock.timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }),
+}))
 
-function AirportClocks({ now }: { now: Date }) {
+const AirportClocks = memo(function AirportClocks() {
+  const now = useLiveNow()
   return (
     <div className="rail-clocks" aria-label="Airport clocks">
       {AIRPORT_CLOCKS.map((clock) => (
         <div className="rail-clock" key={clock.code}>
           <span className="airport-code">{clock.code}</span>
           <time dateTime={now.toISOString()}>
-            {new Intl.DateTimeFormat('en-GB', {
-              timeZone: clock.timeZone,
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            }).format(now)}
+            {clock.formatter.format(now)}
           </time>
           <small>{clock.city}</small>
         </div>
       ))}
     </div>
   )
-}
+})
 
 function formatBirthday(date: string) {
   const [, month, day] = date.split('-').map(Number)
@@ -788,16 +808,22 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
   )
 }
 
-function GoldenHourView({ data, setData, now }: { data: AppData; setData: DataSetter; now: Date }) {
+function GoldenHourView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [locationStatus, setLocationStatus] = useState('')
+  const now = useLiveNow()
   const { latitude, longitude, locationName } = data.solar
   const utcOffset = -now.getTimezoneOffset()
-  const times = useMemo(() => SunCalc.getTimes(now, latitude, longitude, 0, utcOffset), [latitude, longitude, now, utcOffset])
+  const dayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
+  const dayAnchor = useMemo(() => {
+    const [year, month, day] = dayKey.split('-').map(Number)
+    return new Date(year, month, day, 12)
+  }, [dayKey])
+  const times = useMemo(() => SunCalc.getTimes(dayAnchor, latitude, longitude, 0, utcOffset), [dayAnchor, latitude, longitude, utcOffset])
   const tomorrowTimes = useMemo(() => {
-    const tomorrow = new Date(now)
+    const tomorrow = new Date(dayAnchor)
     tomorrow.setDate(tomorrow.getDate() + 1)
     return SunCalc.getTimes(tomorrow, latitude, longitude, 0, utcOffset)
-  }, [latitude, longitude, now, utcOffset])
+  }, [dayAnchor, latitude, longitude, utcOffset])
   const sunPosition = useMemo(() => SunCalc.getPosition(now, latitude, longitude), [latitude, longitude, now])
   const sunrise = times.sunrise
   const morningGoldenEnd = times.goldenHourEnd
@@ -888,9 +914,10 @@ function GoldenHourView({ data, setData, now }: { data: AppData; setData: DataSe
   )
 }
 
-function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataSetter; now: Date }) {
+function FocusFlightView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [error, setError] = useState('')
   const flight = data.focusFlight
+  const now = useLiveNow(flight.status === 'flying' ? 1_000 : 30_000)
   const origin = findAirport(flight.originCode)
   const destination = findAirport(flight.destinationCode)
   const estimatedMinutes = estimateFlightMinutes(origin, destination)
@@ -926,7 +953,9 @@ function FocusFlightView({ data, setData, now }: { data: AppData; setData: DataS
       return
     }
     const durationMinutes = estimateFlightMinutes(origin, destination)
-    const startedAt = now
+    // This runs only from a click, so taking the exact current time here is intentional.
+    // oxlint-disable-next-line react/purity
+    const startedAt = new Date()
     updateFlight({
       sessionId: crypto.randomUUID(),
       durationMinutes,
@@ -1180,7 +1209,8 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
   )
 }
 
-function MomentView({ data, setData, now }: { data: AppData; setData: DataSetter; now: Date }) {
+function MomentView({ data, setData }: { data: AppData; setData: DataSetter }) {
+  const now = useLiveNow()
   const diff = differenceParts(data.moment.targetAt, now)
   return (
     <div className="simple-page view-enter">
@@ -1267,15 +1297,15 @@ function TrackersView({ data, setData }: { data: AppData; setData: DataSetter })
 function App() {
   const [data, setData] = usePersistentState<AppData>('snoopytools:data:v1', createInitialState, migrateAppData)
   const [activeView, setActiveView] = useState<ToolView>('today')
-  const [now, setNow] = useState(() => new Date())
   const [syncOpen, setSyncOpen] = useState(false)
   const sync = useCloudSync(data, setData)
   const desktopInstall = useDesktopInstall()
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    if (data.focusFlight.status !== 'flying' || !data.focusFlight.endsAt) return
+    const delay = Math.max(0, new Date(data.focusFlight.endsAt).getTime() - Date.now())
+    const timer = window.setTimeout(() => {
       const tick = new Date()
-      setNow(tick)
       setData((current) => {
         if (current.focusFlight.status !== 'flying' || !current.focusFlight.endsAt || new Date(current.focusFlight.endsAt) > tick) return current
         const endedAt = tick.toISOString()
@@ -1288,9 +1318,9 @@ function App() {
           updatedAt: endedAt,
         }
       })
-    }, 1_000)
-    return () => window.clearInterval(timer)
-  }, [setData])
+    }, Math.min(delay + 50, 2_147_483_647))
+    return () => window.clearTimeout(timer)
+  }, [data.focusFlight.endsAt, data.focusFlight.status, setData])
 
   const activeIndex = useMemo(() => NAV_ITEMS.find((item) => item.id === activeView)?.number ?? '00', [activeView])
   const changeTheme = (theme: AppTheme) => setData((current) => ({
@@ -1322,23 +1352,25 @@ function App() {
 
       <aside className="issue-rail">
         <span>snoopy's home</span>
-        <AirportClocks now={now} />
+        <AirportClocks />
         <b>{activeIndex}</b>
       </aside>
 
       <main className="app-content">
-        {activeView === 'today' && <TodayView data={data} onNavigate={setActiveView} />}
-        {activeView === 'birthdays' && <BirthdaysView data={data} setData={setData} />}
-        {activeView === 'concerts' && <ConcertsView data={data} setData={setData} />}
-        {activeView === 'sunset' && <GoldenHourView data={data} setData={setData} now={now} />}
-        {activeView === 'flight' && <FocusFlightView data={data} setData={setData} now={now} />}
-        {activeView === 'routines' && <RoutinesView data={data} setData={setData} />}
-        {activeView === 'quick-todos' && <QuickTodosView data={data} setData={setData} />}
-        {activeView === 'moment' && <MomentView data={data} setData={setData} now={now} />}
-        {activeView === 'notes' && <NotesView data={data} setData={setData} />}
-        {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}
-        {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} />}
-        {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
+        <Suspense fallback={<div className="tool-loading" role="status">opening…</div>}>
+          {activeView === 'today' && <TodayView data={data} onNavigate={setActiveView} />}
+          {activeView === 'birthdays' && <BirthdaysView data={data} setData={setData} />}
+          {activeView === 'concerts' && <ConcertsView data={data} setData={setData} />}
+          {activeView === 'sunset' && <GoldenHourView data={data} setData={setData} />}
+          {activeView === 'flight' && <FocusFlightView data={data} setData={setData} />}
+          {activeView === 'routines' && <RoutinesView data={data} setData={setData} />}
+          {activeView === 'quick-todos' && <QuickTodosView data={data} setData={setData} />}
+          {activeView === 'moment' && <MomentView data={data} setData={setData} />}
+          {activeView === 'notes' && <NotesView data={data} setData={setData} />}
+          {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}
+          {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} />}
+          {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
+        </Suspense>
       </main>
 
       <nav className="mobile-nav" aria-label="Mobile tools">

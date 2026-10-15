@@ -17,6 +17,10 @@ function photoIdsFor(data: AppData) {
   ].filter((id): id is string => Boolean(id)))]
 }
 
+function photoSignatureFor(data: AppData) {
+  return photoIdsFor(data).sort().join('\u0000')
+}
+
 function hasPersonalData(data: AppData) {
   return data.birthdays.length > 0
     || data.concerts.length > 0
@@ -58,6 +62,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
   const applyingRemoteRef = useRef(false)
   const initializedUserRef = useRef<string | null>(null)
   const uploadedIdsRef = useRef(new Set<string>())
+  const photoSignatureRef = useRef<string | null>(null)
   const userId = currentUser?.id
 
   useEffect(() => {
@@ -112,9 +117,14 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
 
   const pushCloudState = useCallback(async (next: AppData) => {
     const photoIds = photoIdsFor(next)
-    await uploadLocalPhotos(next)
+    const photoSignature = photoSignatureFor(next)
+    const photosChanged = photoSignature !== photoSignatureRef.current
+    if (photosChanged) await uploadLocalPhotos(next)
     await saveState({ data: next, updatedAt: next.updatedAt })
-    await pruneCloudPhotos({ activeClientIds: photoIds })
+    if (photosChanged) {
+      await pruneCloudPhotos({ activeClientIds: photoIds })
+      photoSignatureRef.current = photoSignature
+    }
   }, [pruneCloudPhotos, saveState, uploadLocalPhotos])
 
   // Sync status intentionally mirrors the external Convex auth/query state.
@@ -133,6 +143,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     if (!isAuthenticated) {
       initializedUserRef.current = null
       uploadedIdsRef.current.clear()
+      photoSignatureRef.current = null
       setStatus('sign-in')
       setMessage('create an account once, then use the same login on each device')
       return
@@ -168,6 +179,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
               if (!active) return
               applyingRemoteRef.current = true
               dataRef.current = remote
+              photoSignatureRef.current = photoSignatureFor(remote)
               setData(remote)
             } else {
               await pushCloudState(dataRef.current)
@@ -195,6 +207,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
         if (!active) return
         applyingRemoteRef.current = true
         dataRef.current = remote
+        photoSignatureRef.current = photoSignatureFor(remote)
         setData(remote)
         setStatus('synced')
         setMessage('updated from another device')
@@ -225,8 +238,6 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
         setMessage('saved locally; changes will upload when you reconnect')
         return
       }
-      setStatus('syncing')
-      setMessage('saving changes')
       try {
         await pushCloudState(data)
         setStatus('synced')
@@ -235,7 +246,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
         setStatus(navigator.onLine ? 'error' : 'offline')
         setMessage(errorMessage(error, 'changes are safe locally but not uploaded yet'))
       }
-    }, 900)
+    }, 1_200)
     return () => window.clearTimeout(timer)
   }, [data, isAuthenticated, pushCloudState, userId])
 
