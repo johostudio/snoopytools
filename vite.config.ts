@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png', 'headphones-field.jpg'],
       manifest: {
         id: '/',
@@ -39,6 +39,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,svg,png,jpg,woff,woff2}'],
         runtimeCaching: [
           {

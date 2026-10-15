@@ -2,6 +2,7 @@ import {
   lazy,
   memo,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -10,8 +11,10 @@ import {
   type CSSProperties,
   type Dispatch,
   type FormEvent,
+  type InputHTMLAttributes,
   type ReactNode,
   type SetStateAction,
+  type TextareaHTMLAttributes,
 } from 'react'
 import * as SunCalc from 'suncalc'
 import './App.css'
@@ -37,6 +40,81 @@ const LastFmBrowserView = lazy(() => import('./components/LastFmViews').then((mo
 const LastFmPicksView = lazy(() => import('./components/LastFmViews').then((module) => ({ default: module.LastFmPicksView })))
 
 type DataSetter = Dispatch<SetStateAction<AppData>>
+
+type BufferedInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'defaultValue' | 'onChange'> & {
+  value: string | number
+  onCommit: (value: string) => void
+  commitDelay?: number
+}
+
+type BufferedTextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'defaultValue' | 'onChange'> & {
+  value: string
+  onCommit: (value: string) => void
+  commitDelay?: number
+}
+
+function useBufferedCommit<T extends HTMLInputElement | HTMLTextAreaElement>(
+  value: string | number,
+  onCommit: (value: string) => void,
+  commitDelay: number,
+) {
+  const fieldRef = useRef<T>(null)
+  const timerRef = useRef<number | undefined>(undefined)
+  const dirtyRef = useRef(false)
+  const committedValueRef = useRef(String(value))
+  const onCommitRef = useRef(onCommit)
+
+  useEffect(() => {
+    onCommitRef.current = onCommit
+  }, [onCommit])
+
+  const flush = useCallback(() => {
+    if (timerRef.current !== undefined) window.clearTimeout(timerRef.current)
+    timerRef.current = undefined
+    if (!dirtyRef.current || !fieldRef.current) return
+    dirtyRef.current = false
+    const next = fieldRef.current.value
+    if (next === committedValueRef.current) return
+    committedValueRef.current = next
+    onCommitRef.current(next)
+  }, [])
+
+  useEffect(() => {
+    const next = String(value)
+    committedValueRef.current = next
+    const field = fieldRef.current
+    if (field && !dirtyRef.current && document.activeElement !== field && field.value !== next) field.value = next
+  }, [value])
+
+  useEffect(() => () => {
+    if (timerRef.current !== undefined) window.clearTimeout(timerRef.current)
+    flush()
+  }, [flush])
+
+  const handleChange = () => {
+    dirtyRef.current = true
+    if (timerRef.current !== undefined) window.clearTimeout(timerRef.current)
+    timerRef.current = window.setTimeout(flush, commitDelay)
+  }
+
+  const handleBlur = () => {
+    flush()
+    const field = fieldRef.current
+    if (field && field.value !== committedValueRef.current) field.value = committedValueRef.current
+  }
+
+  return { fieldRef, handleChange, handleBlur }
+}
+
+const BufferedInput = memo(function BufferedInput({ value, onCommit, commitDelay = 800, onBlur, ...props }: BufferedInputProps) {
+  const { fieldRef, handleChange, handleBlur } = useBufferedCommit<HTMLInputElement>(value, onCommit, commitDelay)
+  return <input {...props} ref={fieldRef} defaultValue={String(value)} onChange={handleChange} onBlur={(event) => { handleBlur(); onBlur?.(event) }} />
+})
+
+const BufferedTextarea = memo(function BufferedTextarea({ value, onCommit, commitDelay = 800, onBlur, ...props }: BufferedTextareaProps) {
+  const { fieldRef, handleChange, handleBlur } = useBufferedCommit<HTMLTextAreaElement>(value, onCommit, commitDelay)
+  return <textarea {...props} ref={fieldRef} defaultValue={value} onChange={handleChange} onBlur={(event) => { handleBlur(); onBlur?.(event) }} />
+})
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -88,13 +166,39 @@ function useDesktopInstall(): DesktopInstallState {
   return { isDesktop, canInstall: Boolean(promptEvent), installed, install }
 }
 
-function useLiveNow(refreshMs = 1_000) {
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+
+  useEffect(() => {
+    const media = window.matchMedia(query)
+    const update = () => setMatches(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [query])
+
+  return matches
+}
+
+function useLiveNow(refreshMs = 1_000, enabled = true) {
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), refreshMs)
-    return () => window.clearInterval(timer)
-  }, [refreshMs])
+    if (!enabled) return
+    let timer: number | undefined
+    const updateTimer = () => {
+      if (timer !== undefined) window.clearInterval(timer)
+      timer = undefined
+      if (document.visibilityState === 'hidden') return
+      setNow(new Date())
+      timer = window.setInterval(() => setNow(new Date()), refreshMs)
+    }
+    updateTimer()
+    document.addEventListener('visibilitychange', updateTimer)
+    return () => {
+      if (timer !== undefined) window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', updateTimer)
+    }
+  }, [enabled, refreshMs])
 
   return now
 }
@@ -188,7 +292,9 @@ const AIRPORT_CLOCKS = [
 }))
 
 const AirportClocks = memo(function AirportClocks() {
-  const now = useLiveNow()
+  const railHidden = useMediaQuery('(max-width: 899px)')
+  const now = useLiveNow(1_000, !railHidden)
+  if (railHidden) return null
   return (
     <div className="rail-clocks" aria-label="Airport clocks">
       {AIRPORT_CLOCKS.map((clock) => (
@@ -412,8 +518,8 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
           <ProfileAvatar photoId={profile.photoId} />
           <div><span id="profile-editor-title">your profile</span><strong>{profile.displayName || "snoopy's home"}</strong></div>
         </div>
-        <label><span>display name</span><input value={profile.displayName} onChange={(event) => updateProfile({ displayName: event.target.value })} placeholder="snoopy's home" /></label>
-        <label><span>subtitle</span><input value={profile.subtitle} onChange={(event) => updateProfile({ subtitle: event.target.value })} placeholder="a small line about this place" /></label>
+        <label><span>display name</span><BufferedInput value={profile.displayName} onCommit={(value) => updateProfile({ displayName: value })} placeholder="snoopy's home" /></label>
+        <label><span>subtitle</span><BufferedInput value={profile.subtitle} onCommit={(value) => updateProfile({ subtitle: value })} placeholder="a small line about this place" /></label>
         <PhotoPicker photoIds={profile.photoId ? [profile.photoId] : []} onChange={(ids) => updateProfile({ photoId: ids[0] })} />
         <div className="profile-themes" aria-label="colour theme">
           <span>colour</span>
@@ -680,10 +786,10 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
             <div className="editor-fields">
               <span className="folio">PERSONAL FILE / {selected.id.slice(-4).toUpperCase()}</span>
               <div className="field-grid">
-                <Field label="NAME"><input value={selected.name} onChange={(event) => update({ name: event.target.value })} placeholder="name" /></Field>
+                <Field label="NAME"><BufferedInput value={selected.name} onCommit={(value) => update({ name: value })} placeholder="name" /></Field>
                 <Field label="BIRTHDAY"><input type="date" value={selected.date} onChange={(event) => update({ date: event.target.value })} /></Field>
-                <Field label="IMPORTANT NOTES" wide><textarea rows={5} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
-                <Field label="GIFT + PLAN IDEAS" wide><textarea rows={3} value={selected.giftIdeas} onChange={(event) => update({ giftIdeas: event.target.value })} /></Field>
+                <Field label="IMPORTANT NOTES" wide><BufferedTextarea rows={5} value={selected.notes} onCommit={(value) => update({ notes: value })} /></Field>
+                <Field label="GIFT + PLAN IDEAS" wide><BufferedTextarea rows={3} value={selected.giftIdeas} onCommit={(value) => update({ giftIdeas: value })} /></Field>
               </div>
               <div className="editor-actions">
                 <OptionalCalendarAction enabled={calendarEnabled} onEnabledChange={(enabled) => { setCalendarEnabled(enabled); setCalendarStatus('') }} status={calendarStatus}>
@@ -786,13 +892,13 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
               <span className="folio">LIVE ARCHIVE / {selected.id.slice(-4).toUpperCase()}</span>
               <h2>{selected.artist || 'untitled'}</h2>
               <div className="field-grid">
-                <Field label="HEADLINER"><input value={selected.artist} onChange={(event) => update({ artist: event.target.value })} placeholder="artist" /></Field>
+                <Field label="HEADLINER"><BufferedInput value={selected.artist} onCommit={(value) => update({ artist: value })} placeholder="artist" /></Field>
                 <Field label="DATE + TIME"><input type="datetime-local" value={selected.dateTime} onChange={(event) => update({ dateTime: event.target.value })} /></Field>
-                <Field label="VENUE"><input value={selected.venue} onChange={(event) => update({ venue: event.target.value })} /></Field>
-                <Field label="CITY"><input value={selected.city} onChange={(event) => update({ city: event.target.value })} /></Field>
-                <Field label="WHO I WENT WITH" wide><input value={selected.companions} onChange={(event) => update({ companions: event.target.value })} /></Field>
-                <Field label="OPENERS + SIDE ARTISTS" wide><input value={selected.supportingArtists} onChange={(event) => update({ supportingArtists: event.target.value })} /></Field>
-                <Field label="WHAT I WANT TO REMEMBER" wide><textarea rows={4} value={selected.notes} onChange={(event) => update({ notes: event.target.value })} /></Field>
+                <Field label="VENUE"><BufferedInput value={selected.venue} onCommit={(value) => update({ venue: value })} /></Field>
+                <Field label="CITY"><BufferedInput value={selected.city} onCommit={(value) => update({ city: value })} /></Field>
+                <Field label="WHO I WENT WITH" wide><BufferedInput value={selected.companions} onCommit={(value) => update({ companions: value })} /></Field>
+                <Field label="OPENERS + SIDE ARTISTS" wide><BufferedInput value={selected.supportingArtists} onCommit={(value) => update({ supportingArtists: value })} /></Field>
+                <Field label="WHAT I WANT TO REMEMBER" wide><BufferedTextarea rows={4} value={selected.notes} onCommit={(value) => update({ notes: value })} /></Field>
               </div>
               <PhotoPicker photoIds={selected.photoIds} multiple onChange={(photoIds) => update({ photoIds })} />
               <OptionalCalendarAction enabled={calendarEnabled} onEnabledChange={(enabled) => { setCalendarEnabled(enabled); setCalendarStatus('') }} status={calendarStatus}>
@@ -902,9 +1008,9 @@ function GoldenHourView({ data, setData }: { data: AppData; setData: DataSetter 
             <small>{sunPosition.altitude >= 0 ? 'above' : 'below'} the horizon</small>
           </div>
           <div className="solar-location-editor">
-            <Field label="LOCATION NAME" wide><input value={locationName} onChange={(event) => updateSolar({ locationName: event.target.value })} /></Field>
-            <Field label="LATITUDE"><input type="number" step="0.0001" value={latitude} onChange={(event) => event.target.value && updateSolar({ latitude: Number(event.target.value) })} /></Field>
-            <Field label="LONGITUDE"><input type="number" step="0.0001" value={longitude} onChange={(event) => event.target.value && updateSolar({ longitude: Number(event.target.value) })} /></Field>
+            <Field label="LOCATION NAME" wide><BufferedInput value={locationName} onCommit={(value) => updateSolar({ locationName: value })} /></Field>
+            <Field label="LATITUDE"><BufferedInput type="number" step="0.0001" value={latitude} onCommit={(value) => value && updateSolar({ latitude: Number(value) })} /></Field>
+            <Field label="LONGITUDE"><BufferedInput type="number" step="0.0001" value={longitude} onCommit={(value) => value && updateSolar({ longitude: Number(value) })} /></Field>
           </div>
           <p className="support-note">Calculated on this device. Times use your device timezone; location permission is only requested when you tap the button.</p>
           {locationStatus && <output className="action-status">{locationStatus}</output>}
@@ -1035,8 +1141,8 @@ function FocusFlightView({ data, setData }: { data: AppData; setData: DataSetter
                 <strong>{formatFlightDuration(estimatedMinutes)}</strong>
                 <small>{distanceKm.toLocaleString('en-US')} KM · DIRECT GREAT-CIRCLE ESTIMATE</small>
               </div>
-              <Field label="MESSAGE FOR TAKEOFF" wide><textarea rows={3} value={flight.intention} onChange={(event) => updateFlight({ intention: event.target.value })} placeholder="takeoff note" /></Field>
-              <Field label="SEALED MESSAGE FOR ARRIVAL" wide><textarea rows={4} value={flight.arrivalMessage} onChange={(event) => updateFlight({ arrivalMessage: event.target.value })} placeholder="arrival note" /></Field>
+              <Field label="MESSAGE FOR TAKEOFF" wide><BufferedTextarea rows={3} value={flight.intention} onCommit={(value) => updateFlight({ intention: value })} placeholder="takeoff note" /></Field>
+              <Field label="SEALED MESSAGE FOR ARRIVAL" wide><BufferedTextarea rows={4} value={flight.arrivalMessage} onCommit={(value) => updateFlight({ arrivalMessage: value })} placeholder="arrival note" /></Field>
               <PrimaryAction onClick={startFlight}>START FLIGHT</PrimaryAction>
               {error && <output className="action-status">{error}</output>}
             </>
@@ -1127,7 +1233,7 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
         {routine ? (
           <section className="routine-paper paper-texture">
             <div className="routine-title">
-              <input className="routine-name" value={routine.name} onChange={(event) => updateRoutine((current) => ({ ...current, name: event.target.value }))} placeholder="untitled" />
+              <BufferedInput className="routine-name" value={routine.name} onCommit={(value) => updateRoutine((current) => ({ ...current, name: value }))} placeholder="untitled" />
               <strong>{complete}/{routine.items.length}</strong>
             </div>
             <div className="routine-lines">
@@ -1189,7 +1295,7 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
             <article key={item.id} className={item.done ? 'is-done' : ''}>
               <span>{pad(index + 1)}</span>
               <button type="button" className="quick-todo-check" aria-label={item.done ? `mark ${item.text} incomplete` : `mark ${item.text} complete`} onClick={() => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry))}><i /></button>
-              <input value={item.text} aria-label={`task ${index + 1}`} onChange={(event) => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, text: event.target.value } : entry))} onKeyDown={(event) => {
+              <BufferedInput value={item.text} aria-label={`task ${index + 1}`} onCommit={(value) => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, text: value } : entry))} onKeyDown={(event) => {
                 if (event.key !== 'Enter') return
                 event.preventDefault()
                 draftRef.current?.focus()
@@ -1217,7 +1323,7 @@ function MomentView({ data, setData }: { data: AppData; setData: DataSetter }) {
       <PageHeader index="781" japanese="ひとつの大切な瞬間" title="Point in time" />
       <section className="moment-poster paper-texture">
         <span className="vertical-copy">TIME ARCHIVE / VANCOUVER</span>
-        <input className="moment-name" value={data.moment.label} onChange={(event) => setData((current) => ({ ...current, moment: { ...current.moment, label: event.target.value }, updatedAt: new Date().toISOString() }))} placeholder="event" />
+        <BufferedInput className="moment-name" value={data.moment.label} onCommit={(value) => setData((current) => ({ ...current, moment: { ...current.moment, label: value }, updatedAt: new Date().toISOString() }))} placeholder="event" />
         <div className="moment-count">
           <strong>{diff.days}</strong><span>days</span><strong>{pad(diff.hours)}</strong><span>hrs</span><strong>{pad(diff.minutes)}</strong><span>min</span><strong>{pad(diff.seconds)}</strong><span>sec</span>
         </div>
@@ -1254,7 +1360,7 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
         <aside className="note-index">
           {data.notes.map((note, index) => <button key={note.id} className={note.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(note.id)}><span>{pad(index + 1)}</span><div>{note.title || 'untitled'}<small>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(note.updatedAt))}</small></div></button>)}
         </aside>
-        {selected && <section className="note-paper paper-texture"><input value={selected.title} onChange={(event) => update({ title: event.target.value })} placeholder="untitled" /><textarea value={selected.body} onChange={(event) => update({ body: event.target.value })} /><span>AUTOSAVED LOCALLY / 自動保存</span></section>}
+        {selected && <section className="note-paper paper-texture"><BufferedInput value={selected.title} onCommit={(value) => update({ title: value })} placeholder="untitled" /><BufferedTextarea value={selected.body} onCommit={(value) => update({ body: value })} /><span>AUTOSAVED LOCALLY / 自動保存</span></section>}
         {!selected && <section className="empty-tool paper-texture"><span>0 notes</span><button onClick={addNote}>+ new note</button></section>}
       </div>
     </div>
@@ -1276,12 +1382,12 @@ function TrackersView({ data, setData }: { data: AppData; setData: DataSetter })
             <article key={tracker.id}>
               <span>{pad(index + 1)}</span>
               <div className="tracker-main">
-                <input className="tracker-name" value={tracker.label} onChange={(event) => update(tracker.id, { label: event.target.value })} placeholder="name" />
+                <BufferedInput className="tracker-name" value={tracker.label} onCommit={(value) => update(tracker.id, { label: value })} placeholder="name" />
                 <i><b style={{ transform: `scaleX(${progress / 100})` }} /></i>
                 <div className="tracker-settings">
-                  <label>target <input type="number" min="0.01" step="any" value={tracker.target} onChange={(event) => update(tracker.id, { target: Math.max(.01, Number(event.target.value)) })} /></label>
-                  <label>step <input type="number" min="0.01" step="any" value={tracker.step} onChange={(event) => update(tracker.id, { step: Math.max(.01, Number(event.target.value)) })} /></label>
-                  <label>unit <input value={tracker.unit} onChange={(event) => update(tracker.id, { unit: event.target.value })} /></label>
+                  <label>target <BufferedInput type="number" min="0.01" step="any" value={tracker.target} onCommit={(value) => update(tracker.id, { target: Math.max(.01, Number(value)) })} /></label>
+                  <label>step <BufferedInput type="number" min="0.01" step="any" value={tracker.step} onCommit={(value) => update(tracker.id, { step: Math.max(.01, Number(value)) })} /></label>
+                  <label>unit <BufferedInput value={tracker.unit} onCommit={(value) => update(tracker.id, { unit: value })} /></label>
                 </div>
               </div>
               <em>{tracker.value} / {tracker.target} {tracker.unit}</em>

@@ -194,7 +194,7 @@ button {
   object-fit: contain;
   filter: saturate(.78) contrast(.96);
   transform: rotate(-1.5deg);
-  transition: transform 280ms var(--spring), filter 280ms var(--spring);
+  transition: transform 180ms var(--spring), filter 180ms var(--spring);
 }
 
 .brand-lockup:hover > img {
@@ -241,7 +241,7 @@ button {
   font-size: 11px;
   font-weight: 650;
   letter-spacing: -.052em;
-  transition: color 750ms var(--spring), transform 750ms var(--spring), opacity 750ms var(--spring);
+  transition: color 160ms ease-out, transform 160ms ease-out, opacity 160ms ease-out;
 }
 
 .app-chrome nav button span,
@@ -262,7 +262,7 @@ button {
   background: var(--powder);
   opacity: 0;
   transform: scaleX(.25);
-  transition: opacity 600ms var(--spring), transform 600ms var(--spring);
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
 
 .app-chrome nav button:hover,
@@ -346,7 +346,7 @@ button {
   height: 8px;
   border-radius: inherit;
   background: #748a76;
-  transition: transform 500ms var(--spring);
+  transition: transform 160ms ease-out;
 }
 
 .theme-switcher button:nth-child(2) i { background: #7c9dc4; }
@@ -369,7 +369,7 @@ button {
   color: var(--ink);
   background-color: var(--paper);
   box-shadow: 0 18px 55px rgba(0,0,0,.34), 0 2px 0 rgba(255,255,255,.18) inset;
-  animation: panelFloat 420ms var(--spring) both;
+  animation: panelFloat 180ms ease-out both;
 }
 
 @keyframes panelFloat {
@@ -670,15 +670,15 @@ button {
 }
 
 .view-enter {
-  animation: pageIn 420ms var(--spring) both;
+  animation: pageIn 180ms ease-out both;
 }
 
 .reveal {
-  animation: reveal 520ms var(--spring) both;
+  animation: reveal 220ms ease-out both;
 }
 
-.reveal:nth-child(2) { animation-delay: 35ms; }
-.reveal:nth-child(3) { animation-delay: 70ms; }
+.reveal:nth-child(2),
+.reveal:nth-child(3) { animation-delay: 0ms; }
 
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -686,8 +686,8 @@ button {
 }
 
 @keyframes reveal {
-  from { opacity: 0; transform: translateY(18px); filter: blur(2px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .paper-texture {
@@ -753,7 +753,7 @@ button {
   object-position: 50% 50%;
   filter: saturate(.72) contrast(.9) brightness(.78) sepia(.035);
   transform: scale(1.018);
-  transition: filter 1200ms var(--spring), transform 1600ms var(--spring);
+  transition: filter 240ms ease-out, transform 240ms ease-out;
 }
 
 .index-photo::after {
@@ -911,7 +911,7 @@ button {
   color: inherit;
   background: transparent;
   text-align: left;
-  transition: color 450ms var(--spring), border-color 450ms var(--spring), transform 450ms var(--spring);
+  transition: color 160ms ease-out, border-color 160ms ease-out, transform 160ms ease-out;
 }
 
 .index-stat:hover,
@@ -1009,7 +1009,7 @@ button {
   background-size: 210px 210px, auto;
   background-blend-mode: multiply;
   text-align: left;
-  transition: transform 700ms var(--spring), filter 700ms var(--spring);
+  transition: transform 180ms ease-out, filter 180ms ease-out;
 }
 
 .archive-teaser:hover {
@@ -1111,7 +1111,7 @@ button {
   font-size: 9px;
   font-weight: 750;
   letter-spacing: .1em;
-  transition: color 500ms var(--spring), transform 500ms var(--spring);
+  transition: color 160ms ease-out, transform 160ms ease-out;
 }
 
 .outline-action:hover,
@@ -1156,7 +1156,7 @@ button {
   color: rgba(21,27,24,.6);
   background: transparent;
   text-align: left;
-  transition: color 500ms var(--spring), transform 500ms var(--spring);
+  transition: color 160ms ease-out, transform 160ms ease-out;
 }
 
 .archive-list > button:hover,
@@ -1348,7 +1348,7 @@ button {
   font-weight: 550;
   letter-spacing: -.035em;
   outline: 0;
-  transition: border-color 650ms var(--spring), box-shadow 650ms var(--spring), background-color 650ms var(--spring);
+  transition: border-color 140ms ease-out, box-shadow 140ms ease-out, background-color 140ms ease-out;
 }
 
 .editor-field textarea {
@@ -1416,7 +1416,7 @@ button {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid rgba(21,27,24,.16);
-  animation: reveal 450ms var(--spring) both;
+  animation: reveal 180ms ease-out both;
 }
 
 .calendar-option .action-status { margin: 12px 0 0; }
@@ -1435,7 +1435,7 @@ button {
   font-size: 10px;
   font-weight: 760;
   letter-spacing: .07em;
-  transition: transform 600ms var(--spring), filter 600ms var(--spring);
+  transition: transform 160ms ease-out, filter 160ms ease-out;
 }
 
 .primary-action:hover {
@@ -1458,7 +1458,7 @@ button {
   font-style: normal;
   font-weight: 350;
   line-height: 1;
-  transition: transform 500ms var(--spring);
+  transition: transform 160ms ease-out;
 }
 
 .primary-action:hover i { transform: translateX(3px) scale(1.04); }
@@ -2358,7 +2358,7 @@ button {
   background: #f1d59c;
   box-shadow: 0 0 34px rgba(241,199,132,.52), 0 0 100px rgba(218,151,96,.24);
   transform: translate(-50%, 50%);
-  transition: transform 1200ms var(--spring), opacity 1200ms var(--spring);
+  transition: transform 400ms ease-out, opacity 400ms ease-out;
 }
 
 .solar-sky > span {
@@ -2526,7 +2526,7 @@ button {
   font-size: 18px;
   line-height: 1;
   transform-origin: center;
-  transition: transform 1000ms var(--spring);
+  transition: transform 350ms ease-out;
 }
 
 .flight-route-card {
@@ -2550,7 +2550,7 @@ button {
 .flight-route-card span { display: block; font-size: 7px; font-weight: 700; letter-spacing: .11em; opacity: .52; }
 .flight-route-card strong { display: block; font-size: 34px; font-weight: 680; letter-spacing: -.08em; line-height: .9; }
 .flight-route-card > i { height: 3px; display: block; overflow: hidden; background: rgba(21,27,24,.14); }
-.flight-route-card > i b { width: 100%; height: 100%; display: block; background: var(--blue-select); transform-origin: left; transition: transform 320ms var(--spring); }
+.flight-route-card > i b { width: 100%; height: 100%; display: block; background: var(--blue-select); transform-origin: left; transition: transform 220ms ease-out; }
 
 .flight-clock {
   position: absolute;
@@ -2994,6 +2994,15 @@ button {
 }
 
 @media (max-width: 899px) {
+  .app-frame,
+  .paper-texture {
+    text-shadow: none;
+  }
+
+  .global-grain {
+    display: none;
+  }
+
   .app-chrome {
     height: calc(62px + var(--safe-top));
     grid-template-columns: 1fr auto;
@@ -3038,6 +3047,18 @@ button {
   .mobile-nav::-webkit-scrollbar { display: none; }
   .paper-texture::before { display: none; }
   .flight-clock { backdrop-filter: none; }
+  .sync-panel,
+  .editor-paper,
+  .concert-spread,
+  .solar-details,
+  .flight-console,
+  .routine-paper,
+  .quick-todo-sheet,
+  .moment-poster,
+  .note-paper,
+  .tracker-spread {
+    contain: paint;
+  }
   .mobile-nav button { flex: 0 0 auto; font-size: 10px; }
   .mobile-nav button.is-active { color: #fff; }
   .sync-panel { top: calc(64px + var(--safe-top)); right: max(12px, var(--safe-right)); padding: 20px; }
