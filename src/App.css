@@ -369,12 +369,12 @@ button {
   color: var(--ink);
   background-color: var(--paper);
   box-shadow: 0 18px 55px rgba(0,0,0,.34), 0 2px 0 rgba(255,255,255,.18) inset;
-  animation: panelFloat 180ms ease-out both;
+  animation: panelFloat 100ms ease-out both;
 }
 
 @keyframes panelFloat {
-  from { opacity: 0; transform: translateY(-8px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: .72; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .sync-panel__close {
@@ -670,24 +670,32 @@ button {
 }
 
 .view-enter {
-  animation: pageIn 180ms ease-out both;
+  animation: pageIn 90ms linear both;
 }
 
 .reveal {
-  animation: reveal 220ms ease-out both;
+  animation: reveal 90ms linear both;
 }
 
 .reveal:nth-child(2),
 .reveal:nth-child(3) { animation-delay: 0ms; }
 
 @keyframes pageIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .78; }
+  to { opacity: 1; }
 }
 
 @keyframes reveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .82; }
+  to { opacity: 1; }
+}
+
+.quick-todo-list article,
+.flight-history__list article,
+.listening-rows > a,
+.pick-options > button {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 
 .paper-texture {
@@ -3001,6 +3009,44 @@ button {
 
   .global-grain {
     display: none;
+  }
+
+  .view-enter,
+  .reveal,
+  .sync-panel.paper-texture {
+    animation: none;
+  }
+
+  .paper-texture {
+    background-image:
+      repeating-linear-gradient(91deg, transparent 0 7px, rgba(42,51,45,.025) 8px, transparent 9px 17px),
+      repeating-linear-gradient(2deg, transparent 0 11px, rgba(255,255,255,.065) 12px, transparent 13px 25px),
+      radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(53,49,39,.055));
+    background-size: auto;
+  }
+
+  .paper-texture::after {
+    opacity: .2;
+    background:
+      repeating-linear-gradient(91deg, transparent 0 15px, rgba(62,53,38,.025) 16px, transparent 17px 33px),
+      linear-gradient(105deg, rgba(255,255,255,.03), transparent 32%, rgba(53,61,54,.035));
+    box-shadow: none;
+  }
+
+  .index-photo::after,
+  .portrait-frame::after,
+  .concert-collage::after {
+    background:
+      repeating-linear-gradient(0deg, transparent 0 4px, rgba(240,233,209,.025) 5px, transparent 6px 11px),
+      radial-gradient(ellipse at 50% 46%, transparent 40%, rgba(3,7,6,.38));
+    background-size: auto;
+  }
+
+  .archive-teaser,
+  .photo-print,
+  .card-preview::after {
+    background-image: repeating-linear-gradient(92deg, transparent 0 7px, rgba(33,39,35,.028) 8px, transparent 9px 17px);
+    background-size: auto;
   }
 
   .app-chrome {

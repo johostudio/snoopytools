@@ -119,8 +119,9 @@ export async function getSession() {
   return response.user
 }
 
-export async function getCloudState() {
-  return (await jsonRequest<StateResponse>('/v1/state')).state
+export async function getCloudState(since?: string) {
+  const query = since ? `?${new URLSearchParams({ since })}` : ''
+  return (await jsonRequest<StateResponse>(`/v1/state${query}`)).state
 }
 
 export async function saveCloudState(data: AppData): Promise<SaveStateResponse> {

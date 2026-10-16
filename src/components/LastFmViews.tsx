@@ -92,7 +92,7 @@ function saveSnapshot(setData: DataSetter, username: string, snapshot: LastFmSna
 }
 
 export function LastFmBrowserView({ data, setData, onNavigate, authenticated }: { data: AppData; setData: DataSetter; onNavigate: (view: ToolView) => void; authenticated: boolean }) {
-  const [usernameDraft, setUsernameDraft] = useState<string | null>(null)
+  const usernameRef = useRef<HTMLInputElement>(null)
   const [period, setPeriod] = useState<ListeningPeriod>('week')
   const [section, setSection] = useState<ListeningCategory | 'recent'>('recent')
   const [busy, setBusy] = useState(false)
@@ -101,7 +101,7 @@ export function LastFmBrowserView({ data, setData, onNavigate, authenticated }: 
   const snapshot = data.lastFm.snapshots[period]
 
   const load = useCallback(async (automatic = false) => {
-    const cleanUsername = (automatic ? data.lastFm.username : usernameDraft ?? data.lastFm.username).trim()
+    const cleanUsername = (automatic ? data.lastFm.username : usernameRef.current?.value ?? data.lastFm.username).trim()
     if (!cleanUsername) {
       if (!automatic) setMessage('enter your last.fm username first.')
       return
@@ -117,7 +117,12 @@ export function LastFmBrowserView({ data, setData, onNavigate, authenticated }: 
     } finally {
       setBusy(false)
     }
-  }, [data.lastFm.username, period, setData, snapshot, usernameDraft])
+  }, [data.lastFm.username, period, setData, snapshot])
+
+  useEffect(() => {
+    const input = usernameRef.current
+    if (input && document.activeElement !== input && input.value !== data.lastFm.username) input.value = data.lastFm.username
+  }, [data.lastFm.username])
 
   useEffect(() => {
     const username = data.lastFm.username.trim()
@@ -147,7 +152,7 @@ export function LastFmBrowserView({ data, setData, onNavigate, authenticated }: 
           <strong>{snapshot?.user.realName || snapshot?.user.name || 'your listening archive'}</strong>
           <small>{snapshot ? `${number(snapshot.user.playcount)} all-time scrobbles · ${fetchedLabel(snapshot.fetchedAt)}` : 'public read-only stats · cached after each refresh'}</small>
         </div>
-        <label><span>username</span><input value={usernameDraft ?? data.lastFm.username} onChange={(event) => setUsernameDraft(event.target.value)} placeholder="last.fm username" autoCapitalize="none" autoCorrect="off" /></label>
+        <label><span>username</span><input ref={usernameRef} defaultValue={data.lastFm.username} placeholder="last.fm username" autoCapitalize="none" autoCorrect="off" /></label>
         <button type="button" className="listening-refresh" onClick={() => void load(false)} disabled={busy}>{busy ? 'loading…' : snapshot ? 'refresh stats' : 'connect archive'}</button>
         {message && <output>{message}</output>}
       </section>

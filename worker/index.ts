@@ -263,10 +263,18 @@ async function readState(env: Env, userId: string, row?: StateRow | null) {
   }
 }
 
-async function getState(request: Request, env: Env) {
+async function getState(request: Request, env: Env, url: URL) {
   routeMethod(request, 'GET')
   const user = await requireUser(request, env)
-  return json({ state: await readState(env, user.id) })
+  const row = await env.DB.prepare(
+    'SELECT object_key, updated_at, size_bytes FROM app_states WHERE user_id = ?',
+  ).bind(user.id).first<StateRow>()
+  if (!row) return json({ state: null })
+  const since = url.searchParams.get('since')
+  if (since && Number.isFinite(Date.parse(since)) && Date.parse(row.updated_at) <= Date.parse(since)) {
+    return json({ state: null, notModified: true })
+  }
+  return json({ state: await readState(env, user.id, row) })
 }
 
 async function putState(request: Request, env: Env) {
@@ -535,7 +543,7 @@ async function handle(request: Request, env: Env) {
   if (path === '/v1/auth/signin') return signIn(request, env)
   if (path === '/v1/auth/connect') return connect(request, env)
   if (path === '/v1/auth/session') return session(request, env)
-  if (path === '/v1/state') return request.method === 'GET' ? getState(request, env) : putState(request, env)
+  if (path === '/v1/state') return request.method === 'GET' ? getState(request, env, url) : putState(request, env)
   if (path === '/v1/photos/prune') return prunePhotos(request, env)
   if (path.startsWith('/v1/photos/')) return photo(request, env, path)
   if (path === '/v1/lastfm/dashboard') return lastFmDashboard(request, env, url)

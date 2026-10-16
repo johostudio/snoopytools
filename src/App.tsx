@@ -472,11 +472,12 @@ function OptionalCalendarAction({
 }
 
 function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; desktopInstall: DesktopInstallState; onClose: () => void }) {
-  const [email, setEmail] = useState(() => window.localStorage.getItem('snoopytools:last-email') ?? '')
-  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const submitAccount = async (event: FormEvent) => {
+  const submitAccount = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const email = String(form.get('email') ?? '').trim()
+    const password = String(form.get('password') ?? '')
     if (!email.trim() || password.length < 8) return
     setBusy(true)
     try {
@@ -547,10 +548,10 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
           <form className="sync-email" onSubmit={submitAccount}>
             <label htmlFor="sync-email">connect once</label>
             <div className="sync-email__field">
-              <input id="sync-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" required />
+              <input id="sync-email" name="email" type="email" autoComplete="email" defaultValue={window.localStorage.getItem('snoopytools:last-email') ?? ''} placeholder="email" required />
             </div>
             <div className="sync-email__field">
-              <input name="password" type="password" autoComplete="current-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password · 8+ characters" required />
+              <input name="password" type="password" autoComplete="current-password" minLength={8} placeholder="password · 8+ characters" required />
             </div>
             <button className="sync-email__submit" disabled={busy}>{busy ? 'connecting…' : 'connect + keep me signed in'}</button>
           </form>
@@ -1192,7 +1193,7 @@ function FocusFlightView({ data, setData }: { data: AppData; setData: DataSetter
 
 function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const [selectedId, setSelectedId] = useState(data.routines[0]?.id ?? '')
-  const [newItem, setNewItem] = useState('')
+  const newItemRef = useRef<HTMLInputElement>(null)
   const routine = data.routines.find((item) => item.id === selectedId) ?? data.routines[0]
   const complete = routine?.items.filter((item) => item.done).length ?? 0
 
@@ -1209,9 +1210,11 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
 
   const addItem = (event: FormEvent) => {
     event.preventDefault()
-    if (!newItem.trim()) return
-    updateRoutine((current) => ({ ...current, items: [...current.items, { id: crypto.randomUUID(), text: newItem.trim(), done: false }] }))
-    setNewItem('')
+    const text = newItemRef.current?.value.trim() ?? ''
+    if (!text) return
+    updateRoutine((current) => ({ ...current, items: [...current.items, { id: crypto.randomUUID(), text, done: false }] }))
+    if (newItemRef.current) newItemRef.current.value = ''
+    newItemRef.current?.focus()
   }
 
   return (
@@ -1237,7 +1240,7 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
                 </label>
               ))}
             </div>
-            <form className="paper-form" onSubmit={addItem}><input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="new item" /><button>ADD</button></form>
+            <form className="paper-form" onSubmit={addItem}><input ref={newItemRef} placeholder="new item" /><button>ADD</button></form>
             <button className="underlined-action" onClick={() => updateRoutine((current) => ({ ...current, items: current.items.map((item) => ({ ...item, done: false })) }))}>RESET ↻</button>
           </section>
         ) : (
@@ -1249,7 +1252,6 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
 }
 
 function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter }) {
-  const [draft, setDraft] = useState('')
   const draftRef = useRef<HTMLInputElement>(null)
   const doneCount = data.quickTodos.filter((item) => item.done).length
 
@@ -1261,14 +1263,14 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
     const text = value.trim()
     if (!text) return false
     updateTodos((items) => [{ id: crypto.randomUUID(), text, done: false }, ...items])
-    setDraft('')
+    if (draftRef.current) draftRef.current.value = ''
     window.requestAnimationFrame(() => draftRef.current?.focus())
     return true
   }
 
   const addTodo = (event: FormEvent) => {
     event.preventDefault()
-    commitDraft(draftRef.current?.value ?? draft)
+    commitDraft(draftRef.current?.value ?? '')
   }
 
   return (
@@ -1285,8 +1287,6 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
           <input
             ref={draftRef}
             autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
               event.preventDefault()

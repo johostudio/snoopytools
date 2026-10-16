@@ -249,7 +249,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       } catch (error) {
         handleFailure(error, 'changes are safe locally but not uploaded yet')
       }
-    }, 1_200)
+    }, 600)
     return () => window.clearTimeout(timer)
   }, [checkingSession, data, handleFailure, pushCloudState, user])
 
@@ -261,10 +261,9 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       if (!active || pulling || !navigator.onLine || document.visibilityState === 'hidden') return
       pulling = true
       try {
-        const cloudState = await getCloudState()
+        const cloudState = await getCloudState(dataRef.current.updatedAt)
         if (!active || !cloudState) return
         const remote = migrateAppData(cloudState.data)
-        if (JSON.stringify(remote) === JSON.stringify(dataRef.current)) return
         if (Date.parse(remote.updatedAt) <= Date.parse(dataRef.current.updatedAt)) return
         await applyRemote(remote)
         if (!active) return
@@ -276,7 +275,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
         pulling = false
       }
     }
-    const timer = window.setInterval(() => void pullLatest(), 15_000)
+    const timer = window.setInterval(() => void pullLatest(), 5_000)
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void pullLatest()
     }
