@@ -67,6 +67,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
   const [status, setStatus] = useState<CloudSyncStatus>(configured ? (hasCloudSession() ? 'syncing' : 'sign-in') : 'local')
   const [message, setMessage] = useState(configured ? 'opening your private cloud' : 'saved on this device')
   const [connectionRevision, setConnectionRevision] = useState(0)
+  const [readyUserId, setReadyUserId] = useState<string | null>(null)
   const dataRef = useRef(data)
   const applyingRemoteRef = useRef(false)
   const initializedUserRef = useRef<string | null>(null)
@@ -84,6 +85,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     setUser(null)
     setCheckingSession(false)
     initializedUserRef.current = null
+    setReadyUserId(null)
     uploadedIdsRef.current.clear()
     photoSignatureRef.current = null
     setStatus('sign-in')
@@ -216,6 +218,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
         if (!active) return
         window.localStorage.setItem('snoopytools:cloudflare-linked-user', user.id)
         initializedUserRef.current = user.id
+        setReadyUserId(user.id)
         setStatus('synced')
         setMessage('available here and on your other signed-in devices')
       } catch (error) {
@@ -229,7 +232,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
   }, [applyRemote, checkingSession, configured, handleFailure, pushCloudState, user])
 
   useEffect(() => {
-    if (!user || checkingSession || initializedUserRef.current !== user.id) return
+    if (!user || checkingSession || readyUserId !== user.id) return
     if (applyingRemoteRef.current) {
       applyingRemoteRef.current = false
       return
@@ -251,10 +254,10 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       }
     }, 600)
     return () => window.clearTimeout(timer)
-  }, [checkingSession, data, handleFailure, pushCloudState, user])
+  }, [checkingSession, data, handleFailure, pushCloudState, readyUserId, user])
 
   useEffect(() => {
-    if (!user || checkingSession || initializedUserRef.current !== user.id) return
+    if (!user || checkingSession || readyUserId !== user.id) return
     let active = true
     let pulling = false
     const pullLatest = async () => {
@@ -287,7 +290,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       window.removeEventListener('focus', pullLatest)
       document.removeEventListener('visibilitychange', refreshVisible)
     }
-  }, [applyRemote, checkingSession, handleFailure, user])
+  }, [applyRemote, checkingSession, handleFailure, readyUserId, user])
 
   useEffect(() => {
     const handleOffline = () => {
@@ -296,6 +299,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     }
     const handleOnline = () => {
       initializedUserRef.current = null
+      setReadyUserId(null)
       setStatus('syncing')
       setMessage('connection restored; checking the latest copy')
       setConnectionRevision((revision) => revision + 1)
@@ -314,6 +318,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     try {
       const nextUser = await connectAccount(email.trim().toLowerCase(), password)
       initializedUserRef.current = null
+      setReadyUserId(null)
       setUser(nextUser)
       setCheckingSession(false)
       setConnectionRevision((revision) => revision + 1)
