@@ -19,6 +19,10 @@ interface PublicUser {
   email: string
 }
 
+interface AuthenticatedUser extends PublicUser {
+  session_id: string
+}
+
 interface StateRow {
   object_key: string
   updated_at: string
@@ -43,7 +47,8 @@ type LastFmRecord = Record<string, unknown>
 
 // Cloudflare Workers' Web Crypto runtime caps PBKDF2 at 100,000 iterations.
 const PASSWORD_ITERATIONS = 100_000
-const SESSION_LIFETIME_MS = 400 * 24 * 60 * 60 * 1_000
+// Installed devices renew this rolling session whenever the app opens.
+const SESSION_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1_000
 const MAX_STATE_BYTES = 25 * 1024 * 1024
 const MAX_PHOTO_BYTES = 100 * 1024 * 1024
 
@@ -166,18 +171,18 @@ async function createSession(env: Env, user: PublicUser) {
   return { token, user }
 }
 
-async function requireUser(request: Request, env: Env): Promise<PublicUser> {
+async function requireUser(request: Request, env: Env): Promise<AuthenticatedUser> {
   const authorization = request.headers.get('Authorization')
   if (!authorization?.startsWith('Bearer ')) throw new ApiError(401, 'sign in to use cloud sync.')
   const token = authorization.slice(7).trim()
   if (!token) throw new ApiError(401, 'sign in to use cloud sync.')
   const row = await env.DB.prepare(
-    `SELECT users.id, users.email
+    `SELECT users.id, users.email, sessions.id AS session_id
      FROM sessions
      JOIN users ON users.id = sessions.user_id
      WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
-  ).bind(await sha256(token), new Date().toISOString()).first<PublicUser>()
-  if (!row) throw new ApiError(401, 'this saved session has expired. sign in once more.')
+  ).bind(await sha256(token), new Date().toISOString()).first<AuthenticatedUser>()
+  if (!row) throw new ApiError(401, 'this saved session has expired. connect this device once more.')
   return row
 }
 
@@ -211,9 +216,37 @@ async function signIn(request: Request, env: Env) {
   return json(await createSession(env, { id: user.id, email: user.email }))
 }
 
+async function connect(request: Request, env: Env) {
+  routeMethod(request, 'POST')
+  const body = await jsonBody<{ email?: unknown; password?: unknown }>(request)
+  const email = normalizeEmail(body.email)
+  const password = validatePassword(body.password)
+  const existing = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>()
+
+  if (existing) {
+    const candidate = await passwordHash(password, base64ToBytes(existing.password_salt), existing.password_iterations)
+    if (!equalBytes(candidate, base64ToBytes(existing.password_hash))) throw new ApiError(401, 'email or password did not match.')
+    await env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(new Date().toISOString()).run()
+    return json(await createSession(env, { id: existing.id, email: existing.email }))
+  }
+
+  const id = crypto.randomUUID()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const hash = await passwordHash(password, salt, PASSWORD_ITERATIONS)
+  await env.DB.prepare(
+    'INSERT INTO users (id, email, password_hash, password_salt, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(id, email, bytesToBase64(hash), bytesToBase64(salt), PASSWORD_ITERATIONS, new Date().toISOString()).run()
+  return json(await createSession(env, { id, email }), 201)
+}
+
 async function session(request: Request, env: Env) {
   routeMethod(request, 'GET')
-  return json({ user: await requireUser(request, env) })
+  const user = await requireUser(request, env)
+  await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?').bind(
+    new Date(Date.now() + SESSION_LIFETIME_MS).toISOString(),
+    user.session_id,
+  ).run()
+  return json({ user: { id: user.id, email: user.email } })
 }
 
 async function readState(env: Env, userId: string, row?: StateRow | null) {
@@ -500,6 +533,7 @@ async function handle(request: Request, env: Env) {
   }
   if (path === '/v1/auth/signup') return signUp(request, env)
   if (path === '/v1/auth/signin') return signIn(request, env)
+  if (path === '/v1/auth/connect') return connect(request, env)
   if (path === '/v1/auth/session') return session(request, env)
   if (path === '/v1/state') return request.method === 'GET' ? getState(request, env) : putState(request, env)
   if (path === '/v1/photos/prune') return prunePhotos(request, env)

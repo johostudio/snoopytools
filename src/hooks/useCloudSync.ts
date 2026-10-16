@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { DEFAULT_PROFILE, migrateAppData, type AppData } from '../domain'
 import {
-  authenticate,
   cachedCloudUser,
   clearCloudSession,
   cloudConfigured,
   cloudPhotoExists,
+  connectAccount,
   downloadCloudPhoto,
   getCloudState,
   getSession,
@@ -19,8 +19,6 @@ import {
 import { getPhoto, putPhoto } from '../lib/photoStore'
 
 export type CloudSyncStatus = 'local' | 'sign-in' | 'syncing' | 'synced' | 'offline' | 'error'
-export type AuthFlow = 'signIn' | 'signUp'
-
 function photoIdsFor(data: AppData) {
   return [...new Set([
     data.preferences.profile.photoId,
@@ -89,7 +87,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     uploadedIdsRef.current.clear()
     photoSignatureRef.current = null
     setStatus('sign-in')
-    setMessage('sign in once to reconnect this device')
+    setMessage('connect this device once more')
   }, [])
 
   const handleFailure = useCallback((error: unknown, fallback: string) => {
@@ -113,7 +111,7 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
       setCheckingSession(false)
       setUser(null)
       setStatus('sign-in')
-      setMessage('create an account once, then use the same login on each device')
+      setMessage('connect once; the account is created automatically if needed')
       return
     }
     if (!navigator.onLine) {
@@ -311,29 +309,20 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     }
   }, [])
 
-  const signInWithPassword = async (email: string, password: string, flow: AuthFlow) => {
+  const connectWithPassword = async (email: string, password: string) => {
     setStatus('syncing')
-    setMessage(flow === 'signUp' ? 'creating your private account' : 'signing in')
+    setMessage('connecting this device')
     try {
-      const nextUser = await authenticate(email.trim().toLowerCase(), password, flow)
+      const nextUser = await connectAccount(email.trim().toLowerCase(), password)
       initializedUserRef.current = null
       setUser(nextUser)
       setCheckingSession(false)
       setConnectionRevision((revision) => revision + 1)
     } catch (error) {
       setStatus('error')
-      setMessage(errorMessage(error, flow === 'signUp'
-        ? 'account could not be created. check the email and try again.'
-        : 'email or password did not match. first time here? choose create account.'))
+      setMessage(errorMessage(error, 'this device could not connect. check the email and password.'))
       throw error
     }
-  }
-
-  const prepareAuth = (flow: AuthFlow) => {
-    setStatus('sign-in')
-    setMessage(flow === 'signUp'
-      ? 'create this account once, then use it on every device'
-      : 'use the account you already created')
   }
 
   return {
@@ -342,7 +331,6 @@ export function useCloudSync(data: AppData, setData: Dispatch<SetStateAction<App
     message,
     email: user?.email,
     authenticated: Boolean(user && hasCloudSession()),
-    signInWithPassword,
-    prepareAuth,
+    connectWithPassword,
   }
 }

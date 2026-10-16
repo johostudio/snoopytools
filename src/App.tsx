@@ -474,18 +474,13 @@ function OptionalCalendarAction({
 function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: ReturnType<typeof useCloudSync>; data: AppData; setData: DataSetter; desktopInstall: DesktopInstallState; onClose: () => void }) {
   const [email, setEmail] = useState(() => window.localStorage.getItem('snoopytools:last-email') ?? '')
   const [password, setPassword] = useState('')
-  const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn')
   const [busy, setBusy] = useState(false)
-  const selectFlow = (nextFlow: 'signIn' | 'signUp') => {
-    setFlow(nextFlow)
-    sync.prepareAuth(nextFlow)
-  }
   const submitAccount = async (event: FormEvent) => {
     event.preventDefault()
     if (!email.trim() || password.length < 8) return
     setBusy(true)
     try {
-      await sync.signInWithPassword(email, password, flow)
+      await sync.connectWithPassword(email, password)
       window.localStorage.setItem('snoopytools:last-email', email.trim().toLowerCase())
     } catch {
       // The sync message displays the private authentication error.
@@ -537,7 +532,7 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
         </section>
       )}
 
-      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'this session stays saved on this device' : 'sign in once; this device will remember you'}</span></div>
+      <div className={`sync-state sync-state--${sync.status}`}><i /><strong>{sync.authenticated ? 'saved on this device' : sync.status}</strong><span>{sync.authenticated ? 'this session renews whenever the app opens' : 'connect once; this device will remember you'}</span></div>
       {(sync.status === 'error' || sync.status === 'offline') && <p className="sync-state-message">{sync.message}</p>}
 
       {!sync.configured && (
@@ -549,21 +544,17 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
 
       {sync.configured && !sync.authenticated && (
         <>
-          <div className="sync-auth-mode" role="group" aria-label="account action">
-            <button type="button" className={flow === 'signIn' ? 'is-active' : ''} aria-pressed={flow === 'signIn'} onClick={() => selectFlow('signIn')}>sign in</button>
-            <button type="button" className={flow === 'signUp' ? 'is-active' : ''} aria-pressed={flow === 'signUp'} onClick={() => selectFlow('signUp')}>create account</button>
-          </div>
           <form className="sync-email" onSubmit={submitAccount}>
-            <label htmlFor="sync-email">private account</label>
+            <label htmlFor="sync-email">connect once</label>
             <div className="sync-email__field">
               <input id="sync-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" required />
             </div>
             <div className="sync-email__field">
-              <input name="password" type="password" autoComplete={flow === 'signUp' ? 'new-password' : 'current-password'} minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password · 8+ characters" required />
+              <input name="password" type="password" autoComplete="current-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password · 8+ characters" required />
             </div>
-            <button className="sync-email__submit" disabled={busy}>{busy ? 'working…' : flow === 'signIn' ? 'sign in' : 'create account'}</button>
+            <button className="sync-email__submit" disabled={busy}>{busy ? 'connecting…' : 'connect + keep me signed in'}</button>
           </form>
-          <p className="sync-apple-note">your password is never stored here. cloudflare keeps a private renewable session on this device after the first sign-in.</p>
+          <p className="sync-apple-note">first use creates your private account automatically. after that, this device keeps a renewable session; your password is never stored here.</p>
         </>
       )}
 

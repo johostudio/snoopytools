@@ -33,9 +33,9 @@ Direct writes to Apple Reminders, native contacts, widgets, and background photo
 Treat the server as a mirror rather than a live hard dependency.
 
 - **Client store:** structured records in `localStorage`, photo blobs in IndexedDB, and the installable shell in the service-worker cache.
-- **Authentication:** Convex Auth with email and password today. Apple sign-in can use the same account layer after Apple Developer credentials are configured.
-- **Server:** one private JSON document per user in Convex plus authenticated per-user file records in Convex Storage.
-- **Transport:** debounced document uploads, reconnect retry, photo upload/download, and reactive Convex queries.
+- **Authentication:** a Cloudflare Worker handles one-step account creation/sign-in and renewable per-device sessions.
+- **Server:** one private JSON document per user in R2, with account, session, and object metadata in D1.
+- **Transport:** debounced document uploads, reconnect retry, photo upload/download, and periodic/focus refreshes.
 - **Conflict policy:** document-level last-write-wins based on the app update timestamp. Field-level merge is the next hardening step for truly simultaneous multi-device editing.
 - **Presence:** a small status surface only—offline, syncing, synced, or needs attention.
 - **Recovery:** soft deletes, 30-day restore window, and export/import as JSON.
@@ -59,7 +59,7 @@ This gives instant local writes on iPhone and desktop while making network inter
 
 ### Phase 2 — accounts and sync
 
-- Connect the production Convex deployment to Vercel and initialize production auth secrets
+- Maintain the production Cloudflare Worker, D1 database, and R2 media bucket connected to Vercel
 - Configure Apple sign-in credentials and production redirect URLs when an Apple Developer account is available
 - Add field-level conflict merging and tombstones for simultaneous edits
 - Add photo resizing and resumable uploads for large originals

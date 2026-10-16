@@ -65,6 +65,14 @@ function storeSession(session: SessionResponse) {
   window.localStorage.setItem(USER_KEY, JSON.stringify(session.user))
 }
 
+async function preserveDeviceStorage() {
+  try {
+    await navigator.storage?.persist?.()
+  } catch {
+    // The saved session still works when persistent-storage requests are unsupported.
+  }
+}
+
 function apiUrl(path: string) {
   if (!configuredUrl) throw new CloudApiError(503, 'cloud sync is not configured yet.')
   return `${configuredUrl}${path}`
@@ -94,13 +102,14 @@ async function jsonRequest<T>(path: string, init: RequestInit = {}) {
   return await response.json() as T
 }
 
-export async function authenticate(email: string, password: string, flow: 'signIn' | 'signUp') {
-  const session = await jsonRequest<SessionResponse>(`/v1/auth/${flow === 'signUp' ? 'signup' : 'signin'}`, {
+export async function connectAccount(email: string, password: string) {
+  const session = await jsonRequest<SessionResponse>('/v1/auth/connect', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
   storeSession(session)
+  void preserveDeviceStorage()
   return session.user
 }
 

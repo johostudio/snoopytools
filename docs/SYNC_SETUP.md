@@ -46,9 +46,9 @@ The frontend uses the public Worker URL through `VITE_SYNC_API_URL`. This URL is
 Convex accounts cannot be copied because their original passwords are not available. On the first Cloudflare-backed release:
 
 1. Open the updated app on the device that already contains the complete archive.
-2. Open the profile panel and choose **create account**. The same email may be reused, but this is a new Cloudflare-backed account.
+2. Open the profile panel and choose **connect + keep me signed in**. The account is created automatically if the email is new.
 3. The existing local archive and IndexedDB photos upload automatically.
-4. On each other device, install/open the updated app and choose **sign in** with that new account.
+4. On each other device, install/open the updated app and connect once with the same email and password.
 5. Leave the first device open until the panel says the archive is available on other signed-in devices.
 
 No local records are erased during this change. The `snoopytools:data:v1` local key and `snoopytools-media` IndexedDB database are unchanged. If another device contains unique edits that never reached the main device, open that device before clearing any browser/PWA data.
@@ -57,7 +57,7 @@ No local records are erased during this change. The `snoopytools:data:v1` local 
 
 - Passwords are processed by the Worker and stored only as salted PBKDF2 hashes.
 - The browser receives a random session token; D1 stores only its SHA-256 hash.
-- Sessions last about 400 days and are reused after closing, refreshing, or updating the PWA.
+- Sessions use a rolling ten-year expiry that renews whenever the app opens, and are reused after closing, refreshing, or updating the PWA.
 - There is intentionally no sign-out control. Clearing the site's storage removes the session from that device.
 - The Worker accepts browser requests only from the origins listed in `APP_ORIGINS` in `wrangler.jsonc`.
 
