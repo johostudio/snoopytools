@@ -2076,7 +2076,7 @@ button {
 }
 
 .quick-todo-capture input,
-.quick-todo-list input {
+.quick-todo-list textarea {
   min-width: 0;
   width: 100%;
   padding: 0;
@@ -2130,10 +2130,16 @@ button {
   border-radius: 50%;
 }
 
-.quick-todo-list input {
+.quick-todo-list textarea {
+  min-height: 1.4em;
+  overflow: hidden;
+  resize: none;
   font-size: clamp(15px, 1.8vw, 22px);
   font-weight: 570;
   letter-spacing: -.05em;
+  line-height: 1.38;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .quick-todo-remove {
@@ -2143,7 +2149,7 @@ button {
   opacity: .26;
 }
 
-.quick-todo-list article.is-done input {
+.quick-todo-list article.is-done textarea {
   opacity: .36;
   text-decoration: line-through;
 }
@@ -3254,7 +3260,7 @@ button {
   .quick-todo-capture { grid-template-columns: 24px minmax(0, 1fr) 40px; gap: 10px; }
   .quick-todo-capture input { font-size: 25px; }
   .quick-todo-list article { grid-template-columns: 24px 22px minmax(0, 1fr) 30px; gap: 9px; }
-  .quick-todo-list input { font-size: 16px; }
+  .quick-todo-list textarea { font-size: 16px; }
   .quick-todo-empty { padding-inline: 34px; }
   .moment-poster { min-height: calc(100dvh - 184px); padding: 50px 18px 90px; }
   .moment-count { grid-template-columns: repeat(4, auto); gap: 4px; }

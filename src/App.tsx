@@ -51,6 +51,7 @@ type BufferedTextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, '
   value: string
   onCommit: (value: string) => void
   commitDelay?: number
+  autoGrow?: boolean
 }
 
 function useBufferedCommit<T extends HTMLInputElement | HTMLTextAreaElement>(
@@ -111,9 +112,20 @@ const BufferedInput = memo(function BufferedInput({ value, onCommit, commitDelay
   return <input {...props} ref={fieldRef} defaultValue={String(value)} onChange={handleChange} onBlur={(event) => { handleBlur(); onBlur?.(event) }} />
 })
 
-const BufferedTextarea = memo(function BufferedTextarea({ value, onCommit, commitDelay = 800, onBlur, ...props }: BufferedTextareaProps) {
+const BufferedTextarea = memo(function BufferedTextarea({ value, onCommit, commitDelay = 800, autoGrow = false, onBlur, ...props }: BufferedTextareaProps) {
   const { fieldRef, handleChange, handleBlur } = useBufferedCommit<HTMLTextAreaElement>(value, onCommit, commitDelay)
-  return <textarea {...props} ref={fieldRef} defaultValue={value} onChange={handleChange} onBlur={(event) => { handleBlur(); onBlur?.(event) }} />
+
+  const resize = useCallback(() => {
+    if (!autoGrow || !fieldRef.current) return
+    fieldRef.current.style.height = '0px'
+    fieldRef.current.style.height = `${fieldRef.current.scrollHeight}px`
+  }, [autoGrow, fieldRef])
+
+  useEffect(() => {
+    resize()
+  }, [resize, value])
+
+  return <textarea {...props} ref={fieldRef} rows={props.rows ?? (autoGrow ? 1 : undefined)} defaultValue={value} onChange={() => { handleChange(); resize() }} onBlur={(event) => { handleBlur(); onBlur?.(event) }} />
 })
 
 interface BeforeInstallPromptEvent extends Event {
@@ -217,6 +229,17 @@ const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'lastfm', label: 'last.fm', number: '10' },
   { id: 'music-picks', label: 'bests', number: '11' },
 ]
+
+const LAST_VIEW_KEY = 'snoopytools:last-view:v1'
+
+function readLastView(): ToolView {
+  try {
+    const saved = window.localStorage.getItem(LAST_VIEW_KEY)
+    return NAV_ITEMS.some((item) => item.id === saved) ? saved as ToolView : 'today'
+  } catch {
+    return 'today'
+  }
+}
 
 const THEMES: { id: AppTheme; label: string }[] = [
   { id: 'moss', label: 'moss' },
@@ -1286,7 +1309,6 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
           <span>{pad(data.quickTodos.length + 1)}</span>
           <input
             ref={draftRef}
-            autoFocus
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
               event.preventDefault()
@@ -1304,7 +1326,7 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
             <article key={item.id} className={item.done ? 'is-done' : ''}>
               <span>{pad(index + 1)}</span>
               <button type="button" className="quick-todo-check" aria-label={item.done ? `mark ${item.text} incomplete` : `mark ${item.text} complete`} onClick={() => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry))}><i /></button>
-              <BufferedInput value={item.text} aria-label={`task ${index + 1}`} onCommit={(value) => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, text: value } : entry))} onKeyDown={(event) => {
+              <BufferedTextarea autoGrow value={item.text} aria-label={`task ${index + 1}`} onCommit={(value) => updateTodos((items) => items.map((entry) => entry.id === item.id ? { ...entry, text: value } : entry))} onKeyDown={(event) => {
                 if (event.key !== 'Enter') return
                 event.preventDefault()
                 draftRef.current?.focus()
@@ -1411,10 +1433,18 @@ function TrackersView({ data, setData }: { data: AppData; setData: DataSetter })
 
 function App() {
   const [data, setData] = usePersistentState<AppData>('snoopytools:data:v1', createInitialState, migrateAppData)
-  const [activeView, setActiveView] = useState<ToolView>('today')
+  const [activeView, setActiveView] = useState<ToolView>(readLastView)
   const [syncOpen, setSyncOpen] = useState(false)
   const sync = useCloudSync(data, setData)
   const desktopInstall = useDesktopInstall()
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LAST_VIEW_KEY, activeView)
+    } catch {
+      // The current view still remains in memory when private storage is unavailable.
+    }
+  }, [activeView])
 
   useEffect(() => {
     if (data.focusFlight.status !== 'flying' || !data.focusFlight.endsAt) return
