@@ -37,7 +37,7 @@ function hasPersonalData(data: AppData) {
     || data.notes.length > 0
     || data.routines.length > 0
     || data.quickTodos.length > 0
-    || data.trackers.length > 0
+    || data.bookmarks.length > 0
     || data.flightHistory.length > 0
     || Boolean(data.lastFm.username.trim())
     || Object.values(data.lastFm.picks).some((period) => Object.values(period).some((entries) => entries.length > 0))

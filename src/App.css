@@ -2258,48 +2258,87 @@ button {
 .note-paper textarea { min-height: 340px; flex: 1; padding: 32px 0; resize: none; font-size: 17px; font-weight: 520; line-height: 1.7; }
 .note-paper > span { font-size: 8px; font-weight: 700; letter-spacing: .13em; opacity: .45; }
 
-.tracker-spread {
+.bookmark-spread {
   min-height: calc(100dvh - 228px);
   padding: clamp(45px, 7vw, 100px);
-  color: var(--cream);
-  background: var(--sage);
+  color: var(--ink);
+  background: var(--paper);
 }
 
-.tracker-spread > p { margin: 0 0 60px; font-size: clamp(32px, 5vw, 68px); font-weight: 680; letter-spacing: -.07em; line-height: .9; }
-.tracker-spread > p small { display: block; margin-top: 15px; font-size: 10px; font-weight: 500; letter-spacing: .02em; opacity: .6; }
+.bookmark-spread__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: clamp(42px, 6vw, 76px);
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(21,27,24,.7);
+}
 
-.tracker-spread article {
+.bookmark-spread__header p { display: flex; align-items: end; gap: 12px; margin: 0; }
+.bookmark-spread__header strong { font-size: clamp(64px, 9vw, 126px); font-weight: 680; letter-spacing: -.1em; line-height: .7; }
+.bookmark-spread__header span,
+.bookmark-spread__header small { padding-bottom: 2px; font-size: 8px; font-weight: 680; letter-spacing: .06em; opacity: .48; }
+
+.bookmark-grid {
   display: grid;
-  grid-template-columns: 35px minmax(180px, 1fr) auto auto;
-  align-items: center;
-  gap: 20px;
-  padding: 25px 0;
-  border-bottom: 1px dashed rgba(241,234,215,.32);
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+  gap: 1px;
+  border: 1px solid rgba(21,27,24,.24);
+  background: rgba(21,27,24,.24);
 }
 
-.tracker-spread article > span { font-size: 8px; }
-.tracker-name {
+.bookmark-card {
+  min-width: 0;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.15), transparent 42%),
+    var(--paper);
+}
+
+.bookmark-card > header,
+.bookmark-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.bookmark-card > header span { font-family: 'Inconsolata', monospace; font-size: 8px; opacity: .4; }
+.bookmark-card > header a,
+.bookmark-card > header em { font-size: 8px; font-style: normal; font-weight: 720; letter-spacing: .06em; }
+.bookmark-card > header a { padding-bottom: 3px; border-bottom: 1px solid currentColor; color: inherit; text-decoration: none; }
+.bookmark-card > header em { opacity: .34; }
+.bookmark-card > label { display: grid; gap: 7px; }
+.bookmark-card > label > span { font-size: 7px; font-weight: 760; letter-spacing: .09em; opacity: .46; }
+.bookmark-card input,
+.bookmark-card textarea {
   width: 100%;
-  margin-bottom: 10px;
-  padding: 0;
+  padding: 0 0 9px;
   border: 0;
-  color: inherit;
+  border-bottom: 1px solid rgba(21,27,24,.28);
+  border-radius: 0;
+  color: var(--ink);
   background: transparent;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -.055em;
   outline: 0;
 }
-.tracker-spread article i { width: 100%; height: 4px; display: block; overflow: hidden; background: rgba(241,234,215,.18); }
-.tracker-spread article i b { width: 100%; height: 100%; display: block; background: var(--powder); transform-origin: left; }
-.tracker-spread article em { font-size: 11px; font-style: normal; font-weight: 650; }
-.tracker-settings { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 11px; }
-.tracker-settings label { display: flex; align-items: center; gap: 5px; font-size: 7px; opacity: .58; }
-.tracker-settings input { width: 54px; padding: 2px 0; border: 0; border-bottom: 1px solid rgba(241,234,215,.4); color: inherit; background: transparent; outline: 0; }
-.tracker-settings label:last-child input { width: 76px; }
-.tracker-buttons { display: flex; gap: 5px; }
-.tracker-buttons button { width: 34px; height: 34px; border: 1px solid rgba(241,234,215,.32); color: inherit; background: transparent; }
-.tracker-buttons button:hover { color: var(--ink); background: var(--paper); }
+.bookmark-card label:first-of-type input { font-size: 24px; font-weight: 670; letter-spacing: -.065em; }
+.bookmark-card label:nth-of-type(2) input { font-family: 'Inconsolata', monospace; font-size: 11px; letter-spacing: -.015em; }
+.bookmark-card textarea { min-height: 2.8em; overflow: hidden; resize: none; font-size: 12px; line-height: 1.45; }
+.bookmark-card__notes { flex: 1; }
+.bookmark-card > footer { margin-top: auto; padding-top: 16px; border-top: 1px dashed rgba(21,27,24,.2); }
+.bookmark-card > footer span { max-width: 70%; overflow: hidden; font-family: 'Inconsolata', monospace; font-size: 8px; opacity: .45; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-card > footer button { padding: 0 0 2px; border: 0; border-bottom: 1px solid currentColor; color: inherit; background: transparent; font-size: 7px; opacity: .42; }
+
+.bookmark-empty {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+  color: rgba(21,27,24,.46);
+  background: var(--paper);
+}
+.bookmark-empty > span { font-family: 'Inconsolata', monospace; font-size: 8px; }
+.bookmark-empty > p { max-width: 190px; margin: 0; font-size: 18px; font-weight: 630; letter-spacing: -.055em; line-height: 1.08; }
 
 .solar-teaser {
   color: var(--cream);
@@ -2969,7 +3008,7 @@ button {
 .routine-title strong,
 .moment-name,
 .note-paper input,
-.tracker-spread > p {
+.bookmark-spread__header strong {
   letter-spacing: -.09em;
 }
 
@@ -2980,8 +3019,7 @@ button {
 .archive-list strong,
 .concert-index strong,
 .note-index button,
-.routine-lines b,
-.tracker-spread article > div > strong {
+.routine-lines b {
   letter-spacing: -.045em;
 }
 
@@ -3108,7 +3146,7 @@ button {
   .quick-todo-sheet,
   .moment-poster,
   .note-paper,
-  .tracker-spread {
+  .bookmark-spread {
     contain: paint;
   }
   .mobile-nav button { flex: 0 0 auto; font-size: 10px; }
@@ -3267,10 +3305,10 @@ button {
   .moment-count strong { font-size: 43px; }
   .moment-count span { margin-right: 4px; font-size: 7px; }
   .note-paper { padding: 40px 22px 90px; }
-  .tracker-spread { padding: 50px 22px 100px; }
-  .tracker-spread article { grid-template-columns: 22px 1fr auto; gap: 10px; }
-  .tracker-spread article > em { grid-column: 2; }
-  .tracker-buttons { grid-column: 3; grid-row: 1 / 3; flex-direction: column; }
+  .bookmark-spread { padding: 50px 22px 100px; }
+  .bookmark-spread__header { align-items: start; flex-direction: column; gap: 18px; }
+  .bookmark-grid { grid-template-columns: 1fr; }
+  .bookmark-card { min-height: 270px; padding: 22px; }
 
   .lastfm-connect { grid-template-columns: 1fr; padding: 24px 22px; }
   .lastfm-connect > label,

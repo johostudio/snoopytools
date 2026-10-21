@@ -1,6 +1,6 @@
 import { estimateFlightMinutes, findAirport } from './data/airports'
 
-export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'quick-todos' | 'moment' | 'notes' | 'trackers' | 'lastfm' | 'music-picks'
+export type ToolView = 'today' | 'birthdays' | 'concerts' | 'sunset' | 'flight' | 'routines' | 'quick-todos' | 'moment' | 'notes' | 'bookmarks' | 'lastfm' | 'music-picks'
 export type AppTheme = 'moss' | 'blue' | 'plum' | 'amber'
 export type ListeningPeriod = 'week' | 'month' | 'year'
 export type ListeningCategory = 'artists' | 'albums' | 'tracks'
@@ -41,13 +41,12 @@ export interface Note {
   updatedAt: string
 }
 
-export interface Tracker {
+export interface Bookmark {
   id: string
-  label: string
-  value: number
-  target: number
-  unit: string
-  step: number
+  title: string
+  url: string
+  notes: string
+  createdAt: string
 }
 
 export interface Birthday {
@@ -153,7 +152,7 @@ function createEmptyPicks(): Record<ListeningPeriod, LastFmPeriodPicks> {
 }
 
 export interface AppData {
-  version: 9
+  version: 10
   routines: Routine[]
   quickTodos: QuickTodo[]
   moment: {
@@ -161,7 +160,7 @@ export interface AppData {
     targetAt: string
   }
   notes: Note[]
-  trackers: Tracker[]
+  bookmarks: Bookmark[]
   birthdays: Birthday[]
   concerts: Concert[]
   solar: SolarSettings
@@ -182,12 +181,12 @@ export function createInitialState(): AppData {
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 9,
+    version: 10,
     routines: [],
     quickTodos: [],
     moment: { label: '', targetAt: future.toISOString() },
     notes: [],
-    trackers: [],
+    bookmarks: [],
     birthdays: [],
     concerts: [],
     solar: {
@@ -229,7 +228,20 @@ export function migrateAppData(input: unknown): AppData {
   const routines = Array.isArray(candidate.routines) ? omitLegacySeeds(candidate.routines, ['morning-reset', 'leaving-home']) : defaults.routines
   const quickTodos = Array.isArray(candidate.quickTodos) ? candidate.quickTodos : defaults.quickTodos
   const notes = Array.isArray(candidate.notes) ? omitLegacySeeds(candidate.notes, ['first-note']) : defaults.notes
-  const trackers = Array.isArray(candidate.trackers) ? omitLegacySeeds(candidate.trackers, ['water', 'outside', 'deep-work']) : defaults.trackers
+  const bookmarks = Array.isArray(candidate.bookmarks)
+    ? candidate.bookmarks.flatMap((bookmark) => {
+        if (!bookmark || typeof bookmark !== 'object') return []
+        const entry = bookmark as Partial<Bookmark>
+        if (typeof entry.id !== 'string') return []
+        return [{
+          id: entry.id,
+          title: typeof entry.title === 'string' ? entry.title : '',
+          url: typeof entry.url === 'string' ? entry.url : '',
+          notes: typeof entry.notes === 'string' ? entry.notes : '',
+          createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : defaults.updatedAt,
+        }]
+      })
+    : defaults.bookmarks
   const birthdays = Array.isArray(candidate.birthdays) ? omitLegacySeeds(candidate.birthdays, ['birthday-maya', 'birthday-eli']) : defaults.birthdays
   const concerts = Array.isArray(candidate.concerts) ? omitLegacySeeds(candidate.concerts, ['concert-japanese-house']) : defaults.concerts
   const moment = candidate.moment && typeof candidate.moment === 'object' ? { ...defaults.moment, ...candidate.moment } : defaults.moment
@@ -272,13 +284,11 @@ export function migrateAppData(input: unknown): AppData {
   }
 
   return {
-    ...defaults,
-    ...candidate,
-    version: 9,
+    version: 10,
     routines,
     quickTodos,
     notes,
-    trackers,
+    bookmarks,
     birthdays,
     concerts,
     moment,
@@ -287,5 +297,6 @@ export function migrateAppData(input: unknown): AppData {
     flightHistory,
     lastFm,
     preferences,
+    updatedAt: typeof candidate.updatedAt === 'string' ? candidate.updatedAt : defaults.updatedAt,
   }
 }

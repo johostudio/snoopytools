@@ -225,7 +225,7 @@ const NAV_ITEMS: { id: ToolView; label: string; number: string }[] = [
   { id: 'quick-todos', label: 'to do', number: '06' },
   { id: 'moment', label: 'time', number: '07' },
   { id: 'notes', label: 'notes', number: '08' },
-  { id: 'trackers', label: 'trackers', number: '09' },
+  { id: 'bookmarks', label: 'bookmarks', number: '09' },
   { id: 'lastfm', label: 'last.fm', number: '10' },
   { id: 'music-picks', label: 'bests', number: '11' },
 ]
@@ -235,6 +235,7 @@ const LAST_VIEW_KEY = 'snoopytools:last-view:v1'
 function readLastView(): ToolView {
   try {
     const saved = window.localStorage.getItem(LAST_VIEW_KEY)
+    if (saved === 'trackers') return 'bookmarks'
     return NAV_ITEMS.some((item) => item.id === saved) ? saved as ToolView : 'today'
   } catch {
     return 'today'
@@ -333,16 +334,37 @@ const AirportClocks = memo(function AirportClocks() {
   )
 })
 
+function parsedDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatDateValue(value: string, options: Intl.DateTimeFormatOptions, fallback = 'date not set') {
+  const date = parsedDate(value)
+  return date ? new Intl.DateTimeFormat('en-US', options).format(date) : fallback
+}
+
+function birthdayParts(date: string) {
+  const match = /^(?:\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!match) return null
+  const month = Number(match[1])
+  const day = Number(match[2])
+  const anchor = new Date(2024, month - 1, day)
+  if (anchor.getMonth() !== month - 1 || anchor.getDate() !== day) return null
+  return { month, day, anchor }
+}
+
 function formatBirthday(date: string) {
-  const [, month, day] = date.split('-').map(Number)
-  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date(2024, month - 1, day))
+  const parts = birthdayParts(date)
+  return parts ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(parts.anchor) : 'date not set'
 }
 
 function birthdayDistance(date: string) {
-  const [, month, day] = date.split('-').map(Number)
+  const parts = birthdayParts(date)
+  if (!parts) return null
   const today = new Date()
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const next = new Date(today.getFullYear(), month - 1, day)
+  const next = new Date(today.getFullYear(), parts.month - 1, parts.day)
   if (next < start) next.setFullYear(next.getFullYear() + 1)
   return Math.round((next.getTime() - start.getTime()) / 86_400_000)
 }
@@ -360,9 +382,28 @@ function differenceParts(target: string, now: Date) {
 }
 
 function dateTimeInputValue(iso: string) {
-  const date = new Date(iso)
+  const date = parsedDate(iso)
+  if (!date) return ''
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return local.toISOString().slice(0, 16)
+}
+
+function bookmarkUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(trimmed)
+  try {
+    const url = new URL(hasScheme ? trimmed : `https://${trimmed}`)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+function bookmarkHost(value: string) {
+  const normalized = bookmarkUrl(value)
+  if (!normalized) return 'address needed'
+  return new URL(normalized).hostname.replace(/^www\./, '')
 }
 
 function usePhotoUrl(photoId?: string) {
@@ -595,8 +636,12 @@ function SyncPanel({ sync, data, setData, desktopInstall, onClose }: { sync: Ret
 }
 
 function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: ToolView) => void }) {
-  const nextBirthday = [...data.birthdays].sort((a, b) => birthdayDistance(a.date) - birthdayDistance(b.date))[0]
-  const nextConcert = [...data.concerts].sort((a, b) => a.dateTime.localeCompare(b.dateTime))[0]
+  const nextBirthday = [...data.birthdays]
+    .filter((birthday) => birthdayDistance(birthday.date) !== null)
+    .sort((a, b) => (birthdayDistance(a.date) ?? Number.POSITIVE_INFINITY) - (birthdayDistance(b.date) ?? Number.POSITIVE_INFINITY))[0]
+  const nextConcert = [...data.concerts]
+    .filter((concert) => parsedDate(concert.dateTime))
+    .sort((a, b) => (parsedDate(a.dateTime)?.getTime() ?? Number.POSITIVE_INFINITY) - (parsedDate(b.dateTime)?.getTime() ?? Number.POSITIVE_INFINITY))[0]
 
   return (
     <div className="index-layout view-enter">
@@ -640,7 +685,7 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         <button className="archive-teaser concert-teaser" onClick={() => onNavigate('concerts')}>
           <span>CONCERT ARCHIVE / 音楽</span>
           <strong>{nextConcert?.artist || 'no concerts'}</strong>
-          <p>{nextConcert ? `${nextConcert.venue || 'no venue'} · ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(nextConcert.dateTime))}` : '0 saved'}</p>
+          <p>{nextConcert ? `${nextConcert.venue || 'no venue'} · ${formatDateValue(nextConcert.dateTime, { month: 'short', day: 'numeric' })}` : '0 saved'}</p>
           <i>02</i>
         </button>
         <button className="archive-teaser solar-teaser" onClick={() => onNavigate('sunset')}>
@@ -776,12 +821,12 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
           <span className="list-caption">UPCOMING / {data.birthdays.length} PEOPLE</span>
           {data.birthdays
             .slice()
-            .sort((a, b) => birthdayDistance(a.date) - birthdayDistance(b.date))
+            .sort((a, b) => (birthdayDistance(a.date) ?? Number.POSITIVE_INFINITY) - (birthdayDistance(b.date) ?? Number.POSITIVE_INFINITY))
             .map((birthday, index) => (
               <button key={birthday.id} className={birthday.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(birthday.id); setCardMode(false); setCalendarEnabled(false); setCalendarStatus('') }}>
                 <span>{pad(index + 1)}</span>
                 <div><strong>{birthday.name || 'untitled'}</strong><small>{formatBirthday(birthday.date)}</small></div>
-                <em>{birthdayDistance(birthday.date)}d</em>
+                <em>{birthdayDistance(birthday.date) === null ? '—' : `${birthdayDistance(birthday.date)}d`}</em>
               </button>
             ))}
           <p className="margin-note">yearly calendar reminder</p>
@@ -795,7 +840,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
                 <span>PORTRAIT / 写真</span>
               </div>
               <PhotoPicker photoIds={selected.photoId ? [selected.photoId] : []} onChange={(ids) => update({ photoId: ids[0] })} />
-              <div className="date-stamp"><b>{formatBirthday(selected.date)}</b><small>{birthdayDistance(selected.date)} DAYS AWAY</small></div>
+              <div className="date-stamp"><b>{formatBirthday(selected.date)}</b><small>{birthdayDistance(selected.date) === null ? 'choose a complete date' : `${birthdayDistance(selected.date)} days away`}</small></div>
             </div>
 
             <div className="editor-fields">
@@ -822,7 +867,7 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
                 </OptionalCalendarAction>
                 <button className="paper-action" onClick={() => setCardMode(true)}>MAKE A BIRTHDAY CARD ↗</button>
               </div>
-              <p className="support-note">the person is saved to your tracker automatically. calendar sharing is optional.</p>
+              <p className="support-note">the person is saved to your birthday archive automatically. calendar sharing is optional.</p>
             </div>
           </section>
         )}
@@ -886,7 +931,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
             <button key={concert.id} className={concert.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(concert.id); setCalendarEnabled(false); setCalendarStatus('') }}>
               <em>{pad(index + 1)}</em>
               <div><strong>{concert.artist || 'untitled'}</strong><small>{concert.venue || 'no venue'}</small></div>
-              <time>{new Intl.DateTimeFormat('en-US', { month: '2-digit', year: '2-digit' }).format(new Date(concert.dateTime))}</time>
+              <time>{formatDateValue(concert.dateTime, { month: '2-digit', year: '2-digit' }, '—')}</time>
             </button>
           ))}
         </aside>
@@ -919,7 +964,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
               <OptionalCalendarAction enabled={calendarEnabled} onEnabledChange={(enabled) => { setCalendarEnabled(enabled); setCalendarStatus('') }} status={calendarStatus}>
                 <PrimaryAction onClick={() => void shareCalendar()}>share calendar file / mail</PrimaryAction>
               </OptionalCalendarAction>
-              <p className="support-note">the concert is saved to your tracker automatically. calendar sharing is optional.</p>
+              <p className="support-note">the concert is saved to your concert archive automatically. calendar sharing is optional.</p>
             </div>
           </section>
         )}
@@ -1358,7 +1403,7 @@ function MomentView({ data, setData }: { data: AppData; setData: DataSetter }) {
         <div className="moment-count">
           <strong>{diff.days}</strong><span>days</span><strong>{pad(diff.hours)}</strong><span>hrs</span><strong>{pad(diff.minutes)}</strong><span>min</span><strong>{pad(diff.seconds)}</strong><span>sec</span>
         </div>
-        <mark>{diff.delta >= 0 ? 'UNTIL' : 'SINCE'} / {new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(data.moment.targetAt)).toUpperCase()}</mark>
+        <mark>{diff.delta >= 0 ? 'UNTIL' : 'SINCE'} / {formatDateValue(data.moment.targetAt, { dateStyle: 'long', timeStyle: 'short' }).toUpperCase()}</mark>
         <input type="datetime-local" value={dateTimeInputValue(data.moment.targetAt)} onChange={(event) => {
           const date = new Date(event.target.value)
           if (!Number.isNaN(date.getTime())) {
@@ -1398,34 +1443,49 @@ function NotesView({ data, setData }: { data: AppData; setData: DataSetter }) {
   )
 }
 
-function TrackersView({ data, setData }: { data: AppData; setData: DataSetter }) {
-  const change = (id: string, amount: number) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, value: Math.max(0, Math.min(tracker.target, Number((tracker.value + amount).toFixed(2)))) } : tracker), updatedAt: new Date().toISOString() }))
-  const update = (id: string, patch: Partial<AppData['trackers'][number]>) => setData((current) => ({ ...current, trackers: current.trackers.map((tracker) => tracker.id === id ? { ...tracker, ...patch } : tracker), updatedAt: new Date().toISOString() }))
-  const addTracker = () => setData((current) => ({ ...current, trackers: [...current.trackers, { id: crypto.randomUUID(), label: '', value: 0, target: 1, unit: '', step: 1 }], updatedAt: new Date().toISOString() }))
+function BookmarksView({ data, setData }: { data: AppData; setData: DataSetter }) {
+  const update = (id: string, patch: Partial<AppData['bookmarks'][number]>) => setData((current) => ({
+    ...current,
+    bookmarks: current.bookmarks.map((bookmark) => bookmark.id === id ? { ...bookmark, ...patch } : bookmark),
+    updatedAt: new Date().toISOString(),
+  }))
+  const addBookmark = () => {
+    const createdAt = new Date().toISOString()
+    setData((current) => ({
+      ...current,
+      bookmarks: [{ id: crypto.randomUUID(), title: '', url: '', notes: '', createdAt }, ...current.bookmarks],
+      updatedAt: createdAt,
+    }))
+  }
+  const removeBookmark = (id: string) => setData((current) => ({
+    ...current,
+    bookmarks: current.bookmarks.filter((bookmark) => bookmark.id !== id),
+    updatedAt: new Date().toISOString(),
+  }))
   return (
     <div className="simple-page view-enter">
-      <PageHeader index="783" japanese="本当に大切なことだけ" title="Specific trackers"><button className="outline-action" onClick={addTracker}>+ NEW TRACKER</button></PageHeader>
-      <section className="tracker-spread paper-texture">
-        <p>{pad(data.trackers.length)} trackers</p>
-        {data.trackers.map((tracker, index) => {
-          const progress = Math.min(100, (tracker.value / tracker.target) * 100)
-          return (
-            <article key={tracker.id}>
-              <span>{pad(index + 1)}</span>
-              <div className="tracker-main">
-                <BufferedInput className="tracker-name" value={tracker.label} onCommit={(value) => update(tracker.id, { label: value })} placeholder="name" />
-                <i><b style={{ transform: `scaleX(${progress / 100})` }} /></i>
-                <div className="tracker-settings">
-                  <label>target <BufferedInput type="number" min="0.01" step="any" value={tracker.target} onCommit={(value) => update(tracker.id, { target: Math.max(.01, Number(value)) })} /></label>
-                  <label>step <BufferedInput type="number" min="0.01" step="any" value={tracker.step} onCommit={(value) => update(tracker.id, { step: Math.max(.01, Number(value)) })} /></label>
-                  <label>unit <BufferedInput value={tracker.unit} onCommit={(value) => update(tracker.id, { unit: value })} /></label>
-                </div>
-              </div>
-              <em>{tracker.value} / {tracker.target} {tracker.unit}</em>
-              <div className="tracker-buttons"><button onClick={() => change(tracker.id, -tracker.step)}>−</button><button onClick={() => change(tracker.id, tracker.step)}>＋</button></div>
-            </article>
-          )
-        })}
+      <PageHeader index="783" japanese="よく見る場所" title="website bookmarks"><button className="outline-action" onClick={addBookmark}>+ new bookmark</button></PageHeader>
+      <section className="bookmark-spread paper-texture">
+        <header className="bookmark-spread__header">
+          <p><strong>{pad(data.bookmarks.length)}</strong><span>saved places</span></p>
+          <small>websites, kept close.</small>
+        </header>
+        <div className="bookmark-grid">
+          {data.bookmarks.map((bookmark, index) => {
+            const url = bookmarkUrl(bookmark.url)
+            const host = bookmarkHost(bookmark.url)
+            return (
+              <article className="bookmark-card" key={bookmark.id}>
+                <header><span>{pad(index + 1)}</span>{url ? <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`open ${bookmark.title || host}`}>open ↗</a> : <em>add address</em>}</header>
+                <label><span>name</span><BufferedInput value={bookmark.title} onCommit={(value) => update(bookmark.id, { title: value })} placeholder="website name" /></label>
+                <label><span>address</span><BufferedInput value={bookmark.url} onCommit={(value) => update(bookmark.id, { url: value })} placeholder="example.com" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></label>
+                <label className="bookmark-card__notes"><span>note</span><BufferedTextarea autoGrow value={bookmark.notes} onCommit={(value) => update(bookmark.id, { notes: value })} placeholder="optional" /></label>
+                <footer><span>{host}</span><button type="button" onClick={() => removeBookmark(bookmark.id)} aria-label={`remove ${bookmark.title || host}`}>remove</button></footer>
+              </article>
+            )
+          })}
+          {data.bookmarks.length === 0 && <div className="bookmark-empty"><span>00</span><p>add the first website you want nearby.</p></div>}
+        </div>
       </section>
     </div>
   )
@@ -1512,7 +1572,7 @@ function App() {
           {activeView === 'quick-todos' && <QuickTodosView data={data} setData={setData} />}
           {activeView === 'moment' && <MomentView data={data} setData={setData} />}
           {activeView === 'notes' && <NotesView data={data} setData={setData} />}
-          {activeView === 'trackers' && <TrackersView data={data} setData={setData} />}
+          {activeView === 'bookmarks' && <BookmarksView data={data} setData={setData} />}
           {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} authenticated={sync.authenticated} />}
           {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
         </Suspense>

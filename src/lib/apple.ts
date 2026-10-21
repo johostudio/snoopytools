@@ -17,9 +17,13 @@ function floatingDateTime(value: string) {
 }
 
 function nextBirthdayDate(birthday: Birthday) {
-  const [, month, day] = birthday.date.split('-').map(Number)
+  const match = /^(?:\d{4})-(\d{2})-(\d{2})$/.exec(birthday.date)
+  if (!match) throw new Error('choose a complete birthday before sharing it')
+  const month = Number(match[1])
+  const day = Number(match[2])
   const today = new Date()
   const next = new Date(today.getFullYear(), month - 1, day)
+  if (next.getMonth() !== month - 1 || next.getDate() !== day) throw new Error('choose a valid birthday before sharing it')
   next.setHours(0, 0, 0, 0)
   if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) next.setFullYear(next.getFullYear() + 1)
   return next
@@ -66,6 +70,7 @@ export async function addBirthdayToAppleCalendar(birthday: Birthday) {
 
 export async function addConcertToAppleCalendar(concert: Concert) {
   const start = new Date(concert.dateTime)
+  if (Number.isNaN(start.getTime())) throw new Error('choose a complete concert date before sharing it')
   const end = new Date(start.getTime() + 3 * 60 * 60 * 1_000)
   const endValue = `${end.getFullYear()}${String(end.getMonth() + 1).padStart(2, '0')}${String(end.getDate()).padStart(2, '0')}T${String(end.getHours()).padStart(2, '0')}${String(end.getMinutes()).padStart(2, '0')}00`
   const description = [
