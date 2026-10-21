@@ -1498,6 +1498,11 @@ function App() {
   const sync = useCloudSync(data, setData)
   const desktopInstall = useDesktopInstall()
 
+  const navigateTo = useCallback((view: ToolView) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    setActiveView(view)
+  }, [])
+
   useEffect(() => {
     try {
       window.localStorage.setItem(LAST_VIEW_KEY, activeView)
@@ -1538,12 +1543,12 @@ function App() {
     <div className={`app-frame app-frame--${activeView}`} data-theme={data.preferences.theme}>
       <div className="global-grain" aria-hidden="true" />
       <header className="app-chrome">
-        <button className="brand-lockup" onClick={() => setActiveView('today')}>
+        <button className="brand-lockup" onClick={() => navigateTo('today')}>
           <ProfileAvatar photoId={data.preferences.profile.photoId} />
           <span className="brand-copy"><strong>{data.preferences.profile.displayName || "snoopy's home"}</strong><small>{data.preferences.profile.subtitle}</small></span>
         </button>
         <nav aria-label="Main tools">
-          {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => setActiveView(item.id)}><span>{item.number}</span>{item.label}</button>)}
+          {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => navigateTo(item.id)}><span>{item.number}</span>{item.label}</button>)}
         </nav>
         <div className="chrome-actions">
           <div className="theme-switcher" aria-label="colour theme">
@@ -1563,7 +1568,7 @@ function App() {
 
       <main className="app-content">
         <Suspense fallback={<div className="tool-loading" role="status">opening…</div>}>
-          {activeView === 'today' && <TodayView data={data} onNavigate={setActiveView} />}
+          {activeView === 'today' && <TodayView data={data} onNavigate={navigateTo} />}
           {activeView === 'birthdays' && <BirthdaysView data={data} setData={setData} />}
           {activeView === 'concerts' && <ConcertsView data={data} setData={setData} />}
           {activeView === 'sunset' && <GoldenHourView data={data} setData={setData} />}
@@ -1573,13 +1578,13 @@ function App() {
           {activeView === 'moment' && <MomentView data={data} setData={setData} />}
           {activeView === 'notes' && <NotesView data={data} setData={setData} />}
           {activeView === 'bookmarks' && <BookmarksView data={data} setData={setData} />}
-          {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={setActiveView} authenticated={sync.authenticated} />}
-          {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={setActiveView} />}
+          {activeView === 'lastfm' && <LastFmBrowserView data={data} setData={setData} onNavigate={navigateTo} authenticated={sync.authenticated} />}
+          {activeView === 'music-picks' && <LastFmPicksView data={data} setData={setData} onNavigate={navigateTo} />}
         </Suspense>
       </main>
 
       <nav className="mobile-nav" aria-label="Mobile tools">
-        {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => setActiveView(item.id)}><span>{item.number}</span>{item.label}</button>)}
+        {NAV_ITEMS.map((item) => <button key={item.id} className={activeView === item.id ? 'is-active' : ''} onClick={() => navigateTo(item.id)}><span>{item.number}</span>{item.label}</button>)}
       </nav>
     </div>
   )
