@@ -34,6 +34,11 @@ export interface QuickTodo {
   done: boolean
 }
 
+export interface MomentPoint {
+  label: string
+  targetAt: string
+}
+
 export interface Note {
   id: string
   title: string
@@ -152,12 +157,12 @@ function createEmptyPicks(): Record<ListeningPeriod, LastFmPeriodPicks> {
 }
 
 export interface AppData {
-  version: 10
+  version: 11
   routines: Routine[]
   quickTodos: QuickTodo[]
   moment: {
-    label: string
-    targetAt: string
+    past: MomentPoint
+    future: MomentPoint
   }
   notes: Note[]
   bookmarks: Bookmark[]
@@ -176,15 +181,21 @@ export interface AppData {
 
 export function createInitialState(): AppData {
   const now = new Date()
+  const past = new Date(now)
+  past.setDate(past.getDate() - 24)
+  past.setHours(9, 0, 0, 0)
   const future = new Date(now)
   future.setDate(future.getDate() + 24)
   future.setHours(9, 0, 0, 0)
 
   return {
-    version: 10,
+    version: 11,
     routines: [],
     quickTodos: [],
-    moment: { label: '', targetAt: future.toISOString() },
+    moment: {
+      past: { label: '', targetAt: past.toISOString() },
+      future: { label: '', targetAt: future.toISOString() },
+    },
     notes: [],
     bookmarks: [],
     birthdays: [],
@@ -244,7 +255,28 @@ export function migrateAppData(input: unknown): AppData {
     : defaults.bookmarks
   const birthdays = Array.isArray(candidate.birthdays) ? omitLegacySeeds(candidate.birthdays, ['birthday-maya', 'birthday-eli']) : defaults.birthdays
   const concerts = Array.isArray(candidate.concerts) ? omitLegacySeeds(candidate.concerts, ['concert-japanese-house']) : defaults.concerts
-  const moment = candidate.moment && typeof candidate.moment === 'object' ? { ...defaults.moment, ...candidate.moment } : defaults.moment
+  const candidateMoment = candidate.moment && typeof candidate.moment === 'object'
+    ? candidate.moment as unknown as Record<string, unknown>
+    : undefined
+  const momentPoint = (value: unknown, fallback: MomentPoint): MomentPoint => {
+    if (!value || typeof value !== 'object') return { ...fallback }
+    const point = value as Partial<MomentPoint>
+    return {
+      label: typeof point.label === 'string' ? point.label : fallback.label,
+      targetAt: typeof point.targetAt === 'string' && Number.isFinite(Date.parse(point.targetAt)) ? point.targetAt : fallback.targetAt,
+    }
+  }
+  let moment = { past: { ...defaults.moment.past }, future: { ...defaults.moment.future } }
+  if (candidateMoment && ('past' in candidateMoment || 'future' in candidateMoment)) {
+    moment = {
+      past: momentPoint(candidateMoment.past, defaults.moment.past),
+      future: momentPoint(candidateMoment.future, defaults.moment.future),
+    }
+  } else if (candidateMoment) {
+    const oldPoint = momentPoint(candidateMoment, defaults.moment.future)
+    if (new Date(oldPoint.targetAt).getTime() < Date.now()) moment.past = oldPoint
+    else moment.future = oldPoint
+  }
   const focusFlight = candidate.focusFlight && typeof candidate.focusFlight === 'object' ? { ...defaults.focusFlight, ...candidate.focusFlight } : defaults.focusFlight
   const flightHistory = Array.isArray(candidate.flightHistory) ? candidate.flightHistory : defaults.flightHistory
   const candidateLastFm = candidate.lastFm && typeof candidate.lastFm === 'object' ? candidate.lastFm : undefined
@@ -275,7 +307,8 @@ export function migrateAppData(input: unknown): AppData {
       }
     : defaults.preferences
 
-  if (legacy && moment.label === 'The next good thing') moment.label = ''
+  if (legacy && moment.past.label === 'The next good thing') moment.past.label = ''
+  if (legacy && moment.future.label === 'The next good thing') moment.future.label = ''
   if (legacy && focusFlight.intention === 'Finish one honest, uninterrupted block of study.') focusFlight.intention = ''
   if (legacy && focusFlight.arrivalMessage === 'You made it. Close the book, breathe, and notice what is clearer now.') focusFlight.arrivalMessage = ''
   if (legacy && focusFlight.originCode === 'YVR' && focusFlight.destinationCode === 'HND') focusFlight.destinationCode = 'KHN'
@@ -284,7 +317,7 @@ export function migrateAppData(input: unknown): AppData {
   }
 
   return {
-    version: 10,
+    version: 11,
     routines,
     quickTodos,
     notes,

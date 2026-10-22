@@ -1,5 +1,5 @@
 import type { Birthday } from '../domain'
-import { getPhoto } from './photoStore'
+import { getPhoto, renderablePhotoBlob } from './photoStore'
 
 export type CardStyle = 'sage' | 'powder' | 'paper'
 
@@ -87,7 +87,7 @@ export async function renderBirthdayCard(birthday: Birthday, message: string, st
   if (birthday.photoId) {
     const stored = await getPhoto(birthday.photoId)
     if (stored) {
-      const image = await loadImage(stored.blob)
+      const image = await loadImage(await renderablePhotoBlob(stored))
       context.save()
       context.globalAlpha = style === 'sage' ? .68 : .88
       drawCover(context, image, 0, 0, canvas.width, 770)

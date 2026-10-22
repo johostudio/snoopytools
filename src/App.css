@@ -1488,6 +1488,15 @@ button {
   margin-top: 20px;
 }
 
+.photo-picker__error {
+  display: block;
+  margin: 4px 3px 0;
+  color: #8b3029;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
 .photo-strip {
   display: flex;
   gap: 10px;
@@ -1910,13 +1919,19 @@ button {
   background: var(--paper-cool);
 }
 
-.simple-tabs button {
+.simple-tab-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  border-bottom: 1px dashed rgba(21,27,24,.25);
+}
+
+.simple-tab-select {
   width: 100%;
   display: flex;
   gap: 12px;
   padding: 16px 0;
   border: 0;
-  border-bottom: 1px dashed rgba(21,27,24,.25);
   color: rgba(21,27,24,.55);
   background: transparent;
   font-size: 12px;
@@ -1924,8 +1939,18 @@ button {
   text-align: left;
 }
 
-.simple-tabs button.is-active { color: var(--ink); transform: translateX(4px); }
-.simple-tabs button span { font-size: 8px; }
+.simple-tab-select.is-active { color: var(--ink); transform: translateX(4px); }
+.simple-tab-select span { font-size: 8px; }
+.simple-tab-remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  color: rgba(21,27,24,.34);
+  background: transparent;
+  font-size: 16px;
+}
+.simple-tab-remove:hover { color: #8b3029; }
 
 .routine-paper {
   padding: clamp(32px, 6vw, 90px);
@@ -1969,13 +1994,20 @@ button {
 .empty-tool span { font-family: 'Inconsolata', monospace; font-size: 12px; opacity: .5; }
 .empty-tool button { padding: 9px 0; border: 0; border-bottom: 1px solid currentColor; color: inherit; background: transparent; }
 
+.routine-lines article {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  border-bottom: 1px dashed rgba(21,27,24,.25);
+}
+
 .routine-lines label {
   display: grid;
   grid-template-columns: 28px 22px 1fr;
   align-items: center;
   gap: 11px;
   padding: 20px 0;
-  border-bottom: 1px dashed rgba(21,27,24,.25);
   cursor: pointer;
 }
 
@@ -1984,7 +2016,17 @@ button {
 .routine-lines i { width: 17px; height: 17px; border: 1px solid var(--ink); border-radius: 50%; }
 .routine-lines input:checked + i { background: #dc4039; box-shadow: inset 0 0 0 4px var(--paper); }
 .routine-lines b { font-size: 14px; font-weight: 560; }
-.routine-lines label.is-done b { opacity: .4; text-decoration: line-through; }
+.routine-lines article.is-done b { opacity: .4; text-decoration: line-through; }
+.routine-lines article > button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  color: rgba(21,27,24,.35);
+  background: transparent;
+  font-size: 17px;
+}
+.routine-lines article > button:hover { color: #8b3029; }
 
 .paper-form {
   display: flex;
@@ -1994,7 +2036,8 @@ button {
 
 .paper-form input { min-width: 0; flex: 1; padding: 13px 0; border: 0; background: transparent; outline: 0; }
 .paper-form button { padding: 0 12px; border: 0; color: #fff; background: var(--sage); font-size: 9px; font-weight: 700; }
-.routine-paper > .underlined-action { margin-top: 30px; color: var(--ink); }
+.routine-actions { display: flex; justify-content: space-between; gap: 18px; margin-top: 30px; }
+.routine-actions .underlined-action { color: var(--ink); }
 
 .quick-todo-page {
   width: min(1180px, 100%);
@@ -2189,6 +2232,13 @@ button {
   font-size: inherit;
 }
 
+.moment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 14px;
+}
+
 .moment-poster {
   position: relative;
   min-height: calc(100dvh - 228px);
@@ -2196,19 +2246,31 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px;
+  padding: clamp(62px, 6vw, 90px) clamp(28px, 4vw, 64px);
   overflow: hidden;
   color: var(--cream);
   background: var(--sage);
 }
 
+.moment-poster--past { background: color-mix(in srgb, var(--sage-dark) 88%, #111); }
+.moment-poster--future { background: color-mix(in srgb, var(--sage) 88%, var(--powder)); }
+
+.moment-direction {
+  margin-bottom: 16px;
+  font-family: 'Inconsolata', monospace;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  opacity: .56;
+}
+
 .moment-name {
-  width: min(780px, 86%);
+  width: min(540px, 92%);
   padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
-  font-size: clamp(38px, 6vw, 86px);
+  font-size: clamp(34px, 4.4vw, 66px);
   font-weight: 690;
   letter-spacing: -.075em;
   text-align: center;
@@ -2217,14 +2279,16 @@ button {
 
 .moment-count {
   display: grid;
-  grid-template-columns: repeat(8, auto);
-  align-items: baseline;
-  gap: 8px;
-  margin: 55px 0 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: clamp(8px, 1.5vw, 22px);
+  width: min(560px, 100%);
+  margin: 52px 0 24px;
 }
 
-.moment-count strong { font-size: clamp(45px, 7vw, 92px); font-weight: 680; letter-spacing: -.07em; }
-.moment-count span { margin-right: 12px; font-size: 9px; font-weight: 650; opacity: .55; }
+.moment-count > span { min-width: 0; display: grid; justify-items: center; gap: 2px; }
+.moment-count strong { font-size: clamp(32px, 4.2vw, 60px); font-weight: 680; letter-spacing: -.08em; line-height: .88; }
+.moment-count small { font-size: 7px; font-weight: 650; letter-spacing: .06em; opacity: .5; }
 .moment-poster mark { padding: 3px 7px; color: var(--cream); background: rgba(37,134,246,.35); font-size: 9px; font-weight: 700; letter-spacing: .1em; }
 .moment-poster > input[type='datetime-local'] { margin-top: 34px; padding: 12px 16px; border: 1px solid rgba(241,234,215,.4); color: inherit; background: transparent; color-scheme: dark; }
 
@@ -3166,6 +3230,7 @@ button {
   .concert-layout,
   .simple-spread,
   .notes-spread,
+  .moment-grid,
   .solar-layout,
   .flight-layout { grid-template-columns: 1fr; }
 
@@ -3186,12 +3251,18 @@ button {
 
   .archive-list > button,
   .concert-index > button,
-  .simple-tabs button,
   .note-index button {
     min-width: 160px;
     padding: 12px;
     border: 1px solid rgba(21,27,24,.18);
   }
+
+  .simple-tab-row {
+    min-width: 180px;
+    flex: 0 0 180px;
+    border: 1px solid rgba(21,27,24,.18);
+  }
+  .simple-tab-select { padding: 12px; }
 
   .concert-index > button,
   .note-index button { border-color: rgba(255,255,255,.15); }
@@ -3301,9 +3372,9 @@ button {
   .quick-todo-list textarea { font-size: 16px; }
   .quick-todo-empty { padding-inline: 34px; }
   .moment-poster { min-height: calc(100dvh - 184px); padding: 50px 18px 90px; }
-  .moment-count { grid-template-columns: repeat(4, auto); gap: 4px; }
+  .moment-count { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .moment-count strong { font-size: 43px; }
-  .moment-count span { margin-right: 4px; font-size: 7px; }
+  .moment-count > span { margin: 0; }
   .note-paper { padding: 40px 22px 90px; }
   .bookmark-spread { padding: 50px 22px 100px; }
   .bookmark-spread__header { align-items: start; flex-direction: column; gap: 18px; }

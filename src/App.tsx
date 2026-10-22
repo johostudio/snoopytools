@@ -33,7 +33,7 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { useCloudSync } from './hooks/useCloudSync'
 import { addBirthdayToAppleCalendar, addConcertToAppleCalendar, shareOrDownload } from './lib/apple'
 import { renderBirthdayCard, type CardStyle } from './lib/birthdayCard'
-import { deletePhoto, getPhoto, savePhoto } from './lib/photoStore'
+import { deletePhoto, getPhoto, renderablePhotoBlob, savePhoto } from './lib/photoStore'
 
 const FlightMap = lazy(() => import('./components/FlightMap').then((module) => ({ default: module.FlightMap })))
 const LastFmBrowserView = lazy(() => import('./components/LastFmViews').then((module) => ({ default: module.LastFmBrowserView })))
@@ -412,11 +412,16 @@ function usePhotoUrl(photoId?: string) {
     if (!photoId) return
     let active = true
     let objectUrl: string | undefined
-    getPhoto(photoId).then((photo) => {
-      if (!active || !photo) return
-      objectUrl = URL.createObjectURL(photo.blob)
-      setUrl(objectUrl)
-    })
+    getPhoto(photoId)
+      .then(async (photo) => photo ? await renderablePhotoBlob(photo) : undefined)
+      .then((blob) => {
+        if (!active || !blob) return
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+      })
+      .catch(() => {
+        if (active) setUrl(undefined)
+      })
     return () => {
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
@@ -447,14 +452,20 @@ function PhotoPicker({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   const addPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
     if (!files.length) return
     setBusy(true)
+    setError('')
+    const ids: string[] = []
     try {
-      const ids = await Promise.all(files.map(savePhoto))
+      for (const file of files) ids.push(await savePhoto(file))
       onChange(multiple ? [...photoIds, ...ids] : ids.slice(0, 1))
+    } catch {
+      await Promise.all(ids.map(deletePhoto))
+      setError('that photo could not be prepared. try exporting it as jpeg.')
     } finally {
       setBusy(false)
       event.target.value = ''
@@ -476,13 +487,14 @@ function PhotoPicker({
           </figure>
         ))}
         {(multiple || photoIds.length === 0) && (
-          <button type="button" className="add-photo" onClick={() => inputRef.current?.click()}>
+          <button type="button" className="add-photo" disabled={busy} onClick={() => inputRef.current?.click()}>
             <span>{busy ? '…' : '+'}</span>
-            {busy ? 'ADDING' : 'ADD PHOTO'}
+            {busy ? 'PREPARING' : 'ADD PHOTO'}
           </button>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple={multiple} onChange={addPhotos} hidden />
+      <input ref={inputRef} type="file" accept="image/*,.heic,.heif" multiple={multiple} onChange={addPhotos} hidden />
+      {error && <output className="photo-picker__error">{error}</output>}
     </div>
   )
 }
@@ -639,9 +651,9 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
   const nextBirthday = [...data.birthdays]
     .filter((birthday) => birthdayDistance(birthday.date) !== null)
     .sort((a, b) => (birthdayDistance(a.date) ?? Number.POSITIVE_INFINITY) - (birthdayDistance(b.date) ?? Number.POSITIVE_INFINITY))[0]
-  const nextConcert = [...data.concerts]
+  const latestConcert = [...data.concerts]
     .filter((concert) => parsedDate(concert.dateTime))
-    .sort((a, b) => (parsedDate(a.dateTime)?.getTime() ?? Number.POSITIVE_INFINITY) - (parsedDate(b.dateTime)?.getTime() ?? Number.POSITIVE_INFINITY))[0]
+    .sort((a, b) => (parsedDate(b.dateTime)?.getTime() ?? Number.NEGATIVE_INFINITY) - (parsedDate(a.dateTime)?.getTime() ?? Number.NEGATIVE_INFINITY))[0]
 
   return (
     <div className="index-layout view-enter">
@@ -684,8 +696,8 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
         </button>
         <button className="archive-teaser concert-teaser" onClick={() => onNavigate('concerts')}>
           <span>CONCERT ARCHIVE / 音楽</span>
-          <strong>{nextConcert?.artist || 'no concerts'}</strong>
-          <p>{nextConcert ? `${nextConcert.venue || 'no venue'} · ${formatDateValue(nextConcert.dateTime, { month: 'short', day: 'numeric' })}` : '0 saved'}</p>
+          <strong>{latestConcert?.artist || 'no concerts'}</strong>
+          <p>{latestConcert ? `${latestConcert.venue || 'no venue'} · ${formatDateValue(latestConcert.dateTime, { month: 'short', day: 'numeric' })}` : '0 saved'}</p>
           <i>02</i>
         </button>
         <button className="archive-teaser solar-teaser" onClick={() => onNavigate('sunset')}>
@@ -878,10 +890,14 @@ function BirthdaysView({ data, setData }: { data: AppData; setData: DataSetter }
 }
 
 function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter }) {
-  const [selectedId, setSelectedId] = useState(data.concerts[0]?.id ?? '')
+  const sortedConcerts = useMemo(() => [...data.concerts].sort((a, b) => (
+    (parsedDate(b.dateTime)?.getTime() ?? Number.NEGATIVE_INFINITY)
+    - (parsedDate(a.dateTime)?.getTime() ?? Number.NEGATIVE_INFINITY)
+  )), [data.concerts])
+  const [selectedId, setSelectedId] = useState(sortedConcerts[0]?.id ?? '')
   const [calendarEnabled, setCalendarEnabled] = useState(false)
   const [calendarStatus, setCalendarStatus] = useState('')
-  const selected = data.concerts.find((concert) => concert.id === selectedId) ?? data.concerts[0]
+  const selected = data.concerts.find((concert) => concert.id === selectedId) ?? sortedConcerts[0]
 
   const update = (patch: Partial<Concert>) => {
     if (!selected) return
@@ -901,7 +917,7 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
       dateTime: dateTimeInputValue(now.toISOString()),
       venue: '', city: '', companions: '', supportingArtists: '', notes: '', photoIds: [],
     }
-    setData((current) => ({ ...current, concerts: [...current.concerts, concert], updatedAt: new Date().toISOString() }))
+    setData((current) => ({ ...current, concerts: [concert, ...current.concerts], updatedAt: new Date().toISOString() }))
     setSelectedId(concert.id)
     setCalendarEnabled(false)
     setCalendarStatus('')
@@ -926,8 +942,8 @@ function ConcertsView({ data, setData }: { data: AppData; setData: DataSetter })
 
       <div className="concert-layout">
         <aside className="concert-index reveal">
-          <span>SHOW INDEX / 記録</span>
-          {data.concerts.map((concert, index) => (
+          <span>NEWEST FIRST / 記録</span>
+          {sortedConcerts.map((concert, index) => (
             <button key={concert.id} className={concert.id === selected?.id ? 'is-active' : ''} onClick={() => { setSelectedId(concert.id); setCalendarEnabled(false); setCalendarStatus('') }}>
               <em>{pad(index + 1)}</em>
               <div><strong>{concert.artist || 'untitled'}</strong><small>{concert.venue || 'no venue'}</small></div>
@@ -1276,6 +1292,22 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
     setSelectedId(next.id)
   }
 
+  const removeRoutine = (id: string) => {
+    const index = data.routines.findIndex((item) => item.id === id)
+    const next = data.routines[index + 1] ?? data.routines[index - 1]
+    setData((current) => ({
+      ...current,
+      routines: current.routines.filter((item) => item.id !== id),
+      updatedAt: new Date().toISOString(),
+    }))
+    if (routine?.id === id) setSelectedId(next?.id ?? '')
+  }
+
+  const removeItem = (id: string) => updateRoutine((current) => ({
+    ...current,
+    items: current.items.filter((item) => item.id !== id),
+  }))
+
   const addItem = (event: FormEvent) => {
     event.preventDefault()
     const text = newItemRef.current?.value.trim() ?? ''
@@ -1290,7 +1322,12 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
       <PageHeader index="780" japanese="繰り返すためのリスト" title="Repeat lists"><button className="outline-action" onClick={addRoutine}>+ NEW LIST</button></PageHeader>
       <div className="simple-spread">
         <aside className="simple-tabs paper-texture">
-          {data.routines.map((item, index) => <button key={item.id} className={item.id === routine?.id ? 'is-active' : ''} onClick={() => setSelectedId(item.id)}><span>{pad(index + 1)}</span>{item.name || 'untitled'}</button>)}
+          {data.routines.map((item, index) => (
+            <div className="simple-tab-row" key={item.id}>
+              <button className={`simple-tab-select ${item.id === routine?.id ? 'is-active' : ''}`} onClick={() => setSelectedId(item.id)}><span>{pad(index + 1)}</span>{item.name || 'untitled'}</button>
+              <button className="simple-tab-remove" type="button" onClick={() => removeRoutine(item.id)} aria-label={`remove ${item.name || 'untitled'} list`}>×</button>
+            </div>
+          ))}
         </aside>
         {routine ? (
           <section className="routine-paper paper-texture">
@@ -1300,16 +1337,22 @@ function RoutinesView({ data, setData }: { data: AppData; setData: DataSetter })
             </div>
             <div className="routine-lines">
               {routine.items.map((item, index) => (
-                <label key={item.id} className={item.done ? 'is-done' : ''}>
-                  <span>{pad(index + 1)}</span>
-                  <input type="checkbox" checked={item.done} onChange={() => updateRoutine((current) => ({ ...current, items: current.items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry) }))} />
-                  <i />
-                  <b>{item.text}</b>
-                </label>
+                <article key={item.id} className={item.done ? 'is-done' : ''}>
+                  <label>
+                    <span>{pad(index + 1)}</span>
+                    <input type="checkbox" checked={item.done} onChange={() => updateRoutine((current) => ({ ...current, items: current.items.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry) }))} />
+                    <i />
+                    <b>{item.text}</b>
+                  </label>
+                  <button type="button" onClick={() => removeItem(item.id)} aria-label={`remove ${item.text}`}>×</button>
+                </article>
               ))}
             </div>
             <form className="paper-form" onSubmit={addItem}><input ref={newItemRef} placeholder="new item" /><button>ADD</button></form>
-            <button className="underlined-action" onClick={() => updateRoutine((current) => ({ ...current, items: current.items.map((item) => ({ ...item, done: false })) }))}>RESET ↻</button>
+            <div className="routine-actions">
+              <button className="underlined-action" onClick={() => updateRoutine((current) => ({ ...current, items: current.items.map((item) => ({ ...item, done: false })) }))}>RESET ↻</button>
+              <button className="underlined-action" onClick={() => removeRoutine(routine.id)}>REMOVE LIST</button>
+            </div>
           </section>
         ) : (
           <section className="empty-tool paper-texture"><span>0 lists</span><button onClick={addRoutine}>+ new list</button></section>
@@ -1393,25 +1436,49 @@ function QuickTodosView({ data, setData }: { data: AppData; setData: DataSetter 
 
 function MomentView({ data, setData }: { data: AppData; setData: DataSetter }) {
   const now = useLiveNow()
-  const diff = differenceParts(data.moment.targetAt, now)
+  const points = [
+    { key: 'past' as const, point: data.moment.past, direction: 'since', label: 'point behind', number: '004a' },
+    { key: 'future' as const, point: data.moment.future, direction: 'until', label: 'point forward', number: '004b' },
+  ]
+  const updatePoint = (key: 'past' | 'future', patch: Partial<AppData['moment']['past']>) => setData((current) => ({
+    ...current,
+    moment: { ...current.moment, [key]: { ...current.moment[key], ...patch } },
+    updatedAt: new Date().toISOString(),
+  }))
+
   return (
     <div className="simple-page view-enter">
-      <PageHeader index="781" japanese="ひとつの大切な瞬間" title="Point in time" />
-      <section className="moment-poster paper-texture">
-        <span className="vertical-copy">TIME ARCHIVE / VANCOUVER</span>
-        <BufferedInput className="moment-name" value={data.moment.label} onCommit={(value) => setData((current) => ({ ...current, moment: { ...current.moment, label: value }, updatedAt: new Date().toISOString() }))} placeholder="event" />
-        <div className="moment-count">
-          <strong>{diff.days}</strong><span>days</span><strong>{pad(diff.hours)}</strong><span>hrs</span><strong>{pad(diff.minutes)}</strong><span>min</span><strong>{pad(diff.seconds)}</strong><span>sec</span>
-        </div>
-        <mark>{diff.delta >= 0 ? 'UNTIL' : 'SINCE'} / {formatDateValue(data.moment.targetAt, { dateStyle: 'long', timeStyle: 'short' }).toUpperCase()}</mark>
-        <input type="datetime-local" value={dateTimeInputValue(data.moment.targetAt)} onChange={(event) => {
-          const date = new Date(event.target.value)
-          if (!Number.isNaN(date.getTime())) {
-            setData((current) => ({ ...current, moment: { ...current.moment, targetAt: date.toISOString() }, updatedAt: new Date().toISOString() }))
-          }
-        }} />
-        <b className="archive-number">004</b>
-      </section>
+      <PageHeader index="781" japanese="前と後のふたつの瞬間" title="Point in time" />
+      <div className="moment-grid">
+        {points.map(({ key, point, direction, label, number }) => {
+          const diff = differenceParts(point.targetAt, now)
+          return (
+            <section className={`moment-poster moment-poster--${key} paper-texture`} key={key}>
+              <span className="vertical-copy">TIME ARCHIVE / {label}</span>
+              <small className="moment-direction">{label}</small>
+              <BufferedInput className="moment-name" value={point.label} onCommit={(value) => updatePoint(key, { label: value })} placeholder={key === 'past' ? 'what happened' : 'what is coming'} />
+              <div className="moment-count">
+                <span><strong>{diff.days}</strong><small>days</small></span>
+                <span><strong>{pad(diff.hours)}</strong><small>hrs</small></span>
+                <span><strong>{pad(diff.minutes)}</strong><small>min</small></span>
+                <span><strong>{pad(diff.seconds)}</strong><small>sec</small></span>
+              </div>
+              <mark>{direction} / {formatDateValue(point.targetAt, { dateStyle: 'long', timeStyle: 'short' }).toUpperCase()}</mark>
+              <input
+                type="datetime-local"
+                value={dateTimeInputValue(point.targetAt)}
+                max={key === 'past' ? dateTimeInputValue(now.toISOString()) : undefined}
+                min={key === 'future' ? dateTimeInputValue(now.toISOString()) : undefined}
+                onChange={(event) => {
+                  const date = new Date(event.target.value)
+                  if (!Number.isNaN(date.getTime())) updatePoint(key, { targetAt: date.toISOString() })
+                }}
+              />
+              <b className="archive-number">{number}</b>
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }

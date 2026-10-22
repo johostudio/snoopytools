@@ -41,7 +41,8 @@ function hasPersonalData(data: AppData) {
     || data.flightHistory.length > 0
     || Boolean(data.lastFm.username.trim())
     || Object.values(data.lastFm.picks).some((period) => Object.values(period).some((entries) => entries.length > 0))
-    || Boolean(data.moment.label.trim())
+    || Boolean(data.moment.past.label.trim())
+    || Boolean(data.moment.future.label.trim())
     || data.focusFlight.status !== 'idle'
     || data.preferences.profile.displayName !== DEFAULT_PROFILE.displayName
     || data.preferences.profile.subtitle !== DEFAULT_PROFILE.subtitle
