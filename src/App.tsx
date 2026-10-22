@@ -493,7 +493,7 @@ function PhotoPicker({
           </button>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*,.heic,.heif" multiple={multiple} onChange={addPhotos} hidden />
+      <input ref={inputRef} type="file" accept="image/*,.dng,.heic,.heif" multiple={multiple} onChange={addPhotos} hidden />
       {error && <output className="photo-picker__error">{error}</output>}
     </div>
   )
