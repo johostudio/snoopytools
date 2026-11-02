@@ -1003,6 +1003,166 @@ button {
   gap: 14px;
 }
 
+.index-world-clocks {
+  position: relative;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  padding: 34px;
+  color: var(--cream);
+  background:
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--powder-soft) 15%, transparent), transparent 27%),
+    color-mix(in srgb, var(--sage) 82%, var(--night));
+}
+
+.index-world-clocks > * {
+  position: relative;
+  z-index: 1;
+}
+
+.world-clock-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+  padding: 3px 0 30px;
+}
+
+.world-clock-heading span {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 8px;
+  font-weight: 740;
+  letter-spacing: .12em;
+  opacity: .62;
+}
+
+.world-clock-heading h2 {
+  margin: 0;
+  font-size: clamp(42px, 5.4vw, 76px);
+  font-weight: 650;
+  letter-spacing: -.085em;
+  line-height: .82;
+}
+
+.world-clock-heading p {
+  margin: 0;
+  font-family: 'Inconsolata', monospace;
+  font-size: 9px;
+  letter-spacing: -.015em;
+  opacity: .58;
+}
+
+.world-clock-heading p b {
+  color: var(--powder-soft);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.world-clock-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid rgba(240,237,224,.2);
+  border-left: 1px solid rgba(240,237,224,.2);
+}
+
+.world-clock-card {
+  position: relative;
+  min-width: 0;
+  min-height: 172px;
+  padding: 18px 20px 19px;
+  overflow: hidden;
+  border-right: 1px solid rgba(240,237,224,.2);
+  border-bottom: 1px solid rgba(240,237,224,.2);
+  background: rgba(6,14,12,.075);
+}
+
+.world-clock-card:nth-child(4n + 2),
+.world-clock-card:nth-child(4n + 4) {
+  background: rgba(240,237,224,.035);
+}
+
+.world-clock-card.is-home {
+  color: var(--night);
+  background: var(--powder-soft);
+}
+
+.world-clock-card > header {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Inconsolata', monospace;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .1em;
+  opacity: .6;
+}
+
+.world-clock-card > header b { font-weight: 700; }
+
+.world-clock-card h3 {
+  min-height: 22px;
+  margin: 15px 0 0;
+  overflow: hidden;
+  font-size: clamp(17px, 1.55vw, 22px);
+  font-weight: 650;
+  letter-spacing: -.065em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-clock-detail {
+  position: absolute;
+  top: 58px;
+  right: 20px;
+  font-size: 7px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  opacity: .48;
+}
+
+.world-clock-card > time {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  font-family: 'Inconsolata', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.world-clock-card > time strong {
+  font-size: clamp(32px, 3.4vw, 50px);
+  font-weight: 450;
+  letter-spacing: -.085em;
+  line-height: .9;
+}
+
+.world-clock-card > time em {
+  margin-top: 1px;
+  font-size: 10px;
+  font-style: normal;
+  opacity: .55;
+}
+
+.world-clock-card > footer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  margin-top: 16px;
+  font-family: 'Inconsolata', monospace;
+  font-size: 7px;
+  letter-spacing: .025em;
+  line-height: 1.2;
+  opacity: .6;
+}
+
+.world-clock-card > footer span:nth-child(2) { text-align: right; }
+
+.world-clock-card > footer i {
+  grid-column: 1 / -1;
+  font-style: normal;
+  text-align: right;
+}
+
 .archive-teaser {
   position: relative;
   min-height: 150px;
@@ -3221,6 +3381,13 @@ button {
   .index-photo,
   .manifesto-paper { min-height: 680px; }
   .index-cards { grid-column: auto; grid-template-columns: 1fr; }
+  .index-world-clocks { grid-column: auto; padding: 28px; }
+  .world-clock-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .world-clock-card:nth-child(4n + 2),
+  .world-clock-card:nth-child(4n + 4) { background: rgba(6,14,12,.075); }
+  .world-clock-card:nth-child(4n + 2),
+  .world-clock-card:nth-child(4n + 3) { background: rgba(240,237,224,.035); }
+  .world-clock-card.is-home { background: var(--powder-soft); }
 
   .page-header { min-height: 105px; grid-template-columns: 1fr auto; gap: 10px; }
   .page-header > div:first-child { display: none; }
@@ -3331,6 +3498,18 @@ button {
   .manifesto-copy { width: 68%; transform: translate(-43%, -50%); }
   .manifesto-copy p { font-size: 18px; }
   .archive-teaser { min-height: 145px; padding: 25px 22px; }
+  .index-world-clocks { padding: 25px 12px 16px; }
+  .world-clock-heading { align-items: start; padding: 3px 6px 24px; }
+  .world-clock-heading h2 { font-size: 48px; }
+  .world-clock-heading p { max-width: 90px; text-align: right; }
+  .world-clock-card { min-height: 148px; padding: 16px 12px; }
+  .world-clock-card h3 { margin-top: 13px; font-size: 16px; }
+  .world-clock-detail { top: 51px; right: 12px; }
+  .world-clock-card > time strong { font-size: clamp(29px, 9vw, 38px); }
+  .world-clock-card > footer { grid-template-columns: 1fr; margin-top: 14px; }
+  .world-clock-card > footer span:nth-child(2),
+  .world-clock-card > footer i { grid-column: auto; text-align: left; }
+  .world-clock-card > footer i { position: absolute; right: 12px; bottom: 15px; }
   .flight-history__list article { grid-template-columns: 28px 1fr; gap: 8px 14px; }
   .flight-history__list article div,
   .flight-history__list article p { grid-column: 2; }

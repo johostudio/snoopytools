@@ -334,6 +334,108 @@ const AirportClocks = memo(function AirportClocks() {
   )
 })
 
+const WORLD_CLOCKS = [
+  { code: 'YVR', city: 'Vancouver', timeZone: 'America/Vancouver' },
+  { code: 'YYC', city: 'Calgary', timeZone: 'America/Edmonton' },
+  { code: 'SFO', city: 'San Francisco', timeZone: 'America/Los_Angeles' },
+  { code: 'DEN', city: 'Colorado', detail: 'Denver', timeZone: 'America/Denver' },
+  { code: 'YWG', city: 'Winnipeg', timeZone: 'America/Winnipeg' },
+  { code: 'YYZ', city: 'Toronto', timeZone: 'America/Toronto' },
+  { code: 'MAN', city: 'Manchester', timeZone: 'Europe/London' },
+  { code: 'HEL', city: 'Helsinki', timeZone: 'Europe/Helsinki' },
+  { code: 'CGK', city: 'Jakarta', timeZone: 'Asia/Jakarta' },
+  { code: 'HKG', city: 'Hong Kong', timeZone: 'Asia/Hong_Kong' },
+  { code: 'KUL', city: 'Kuala Lumpur', timeZone: 'Asia/Kuala_Lumpur' },
+  { code: 'BWN', city: 'Bandar Seri Begawan', timeZone: 'Asia/Brunei' },
+  { code: 'KHN', city: 'Nanchang', timeZone: 'Asia/Shanghai' },
+  { code: 'CTS', city: 'Sapporo', timeZone: 'Asia/Tokyo' },
+  { code: 'ICN', city: 'Seoul', timeZone: 'Asia/Seoul' },
+  { code: 'MEL', city: 'Melbourne', timeZone: 'Australia/Melbourne' },
+].map((clock) => ({
+  ...clock,
+  timeFormatter: new Intl.DateTimeFormat('en-GB', {
+    timeZone: clock.timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }),
+  dateFormatter: new Intl.DateTimeFormat('en-US', {
+    timeZone: clock.timeZone,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }),
+  datePartsFormatter: new Intl.DateTimeFormat('en-US', {
+    timeZone: clock.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }),
+  zoneFormatter: new Intl.DateTimeFormat('en-US', {
+    timeZone: clock.timeZone,
+    timeZoneName: 'short',
+  }),
+  offsetFormatter: new Intl.DateTimeFormat('en-US', {
+    timeZone: clock.timeZone,
+    timeZoneName: 'longOffset',
+  }),
+}))
+
+function dateSerial(formatter: Intl.DateTimeFormat, date: Date) {
+  const values = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]))
+  return Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)) / 86_400_000
+}
+
+function timeZoneLabel(formatter: Intl.DateTimeFormat, date: Date) {
+  return formatter.formatToParts(date).find((part) => part.type === 'timeZoneName')?.value ?? ''
+}
+
+const WorldClocks = memo(function WorldClocks() {
+  const now = useLiveNow()
+  const vancouverDate = dateSerial(WORLD_CLOCKS[0].datePartsFormatter, now)
+
+  return (
+    <section className="index-world-clocks paper-texture reveal" aria-labelledby="world-clock-title">
+      <header className="world-clock-heading">
+        <div>
+          <span>live / 世界时钟</span>
+          <h2 id="world-clock-title">world time</h2>
+        </div>
+        <p><b>16</b> cities · updated every second</p>
+      </header>
+      <div className="world-clock-grid">
+        {WORLD_CLOCKS.map((clock, index) => {
+          const parts = Object.fromEntries(clock.timeFormatter.formatToParts(now).map((part) => [part.type, part.value]))
+          const dayDifference = dateSerial(clock.datePartsFormatter, now) - vancouverDate
+          const dayLabel = dayDifference > 0 ? 'tomorrow' : dayDifference < 0 ? 'yesterday' : 'today'
+          const zone = timeZoneLabel(clock.zoneFormatter, now)
+          const offset = timeZoneLabel(clock.offsetFormatter, now).replace('GMT', 'UTC')
+          return (
+            <article className={`world-clock-card${index === 0 ? ' is-home' : ''}`} key={clock.code}>
+              <header>
+                <span>{pad(index + 1)}</span>
+                <b>{clock.code}</b>
+              </header>
+              <h3>{clock.city}</h3>
+              {clock.detail && <small className="world-clock-detail">{clock.detail}</small>}
+              <time dateTime={now.toISOString()}>
+                <strong>{parts.hour}:{parts.minute}</strong>
+                <em>{parts.second}</em>
+              </time>
+              <footer>
+                <span>{clock.dateFormatter.format(now)}</span>
+                <span>{zone} · {offset}</span>
+                <i>{dayLabel}</i>
+              </footer>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+})
+
 function parsedDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
@@ -713,6 +815,8 @@ function TodayView({ data, onNavigate }: { data: AppData; onNavigate: (view: Too
           <i>04</i>
         </button>
       </section>
+
+      <WorldClocks />
     </div>
   )
 }
