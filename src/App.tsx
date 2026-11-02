@@ -351,6 +351,8 @@ const WORLD_CLOCKS = [
   { code: 'CTS', city: 'Sapporo', timeZone: 'Asia/Tokyo' },
   { code: 'ICN', city: 'Seoul', timeZone: 'Asia/Seoul' },
   { code: 'MEL', city: 'Melbourne', timeZone: 'Australia/Melbourne' },
+  { code: 'SIN', city: 'Singapore', timeZone: 'Asia/Singapore' },
+  { code: 'AKL', city: 'Auckland', timeZone: 'Pacific/Auckland' },
 ].map((clock) => ({
   ...clock,
   timeFormatter: new Intl.DateTimeFormat('en-GB', {
@@ -402,7 +404,7 @@ const WorldClocks = memo(function WorldClocks() {
           <span>live / 世界时钟</span>
           <h2 id="world-clock-title">world time</h2>
         </div>
-        <p><b>16</b> cities · updated every second</p>
+        <p><b>{WORLD_CLOCKS.length}</b> cities · updated every second</p>
       </header>
       <div className="world-clock-grid">
         {WORLD_CLOCKS.map((clock, index) => {
